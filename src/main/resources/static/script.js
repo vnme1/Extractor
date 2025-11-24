@@ -1,7 +1,7 @@
 const API_URL = '/api/extract/upload';
 const DOCUMENTS_API = '/api/extract/documents/recent';
 
-// DOM Elements
+// DOM Elements - null 체크 추가
 const fileInput = document.getElementById('fileInput');
 const uploadButton = document.getElementById('uploadButton');
 const logWindow = document.getElementById('logWindow');
@@ -24,10 +24,10 @@ const verifyButton = document.getElementById('verifyButton');
 
 // Event Listeners
 document.addEventListener('DOMContentLoaded', () => {
-    uploadButton.addEventListener('click', () => fileInput.click());
-    fileInput.addEventListener('change', handleFileSelect);
-    exportButton.addEventListener('click', exportToCSV);
-    verifyButton.addEventListener('click', verifyDocument);
+    if (uploadButton) uploadButton.addEventListener('click', () => fileInput.click());
+    if (fileInput) fileInput.addEventListener('change', handleFileSelect);
+    if (exportButton) exportButton.addEventListener('click', exportToCSV);
+    if (verifyButton) verifyButton.addEventListener('click', verifyDocument);
     
     setupDragAndDrop();
     loadRecentDocuments();
@@ -81,31 +81,37 @@ async function uploadFile(file) {
     }
 }
 
-// UI Update Function
+// UI Update Function with null checks
 function updateUI(result) {
-    documentTitle.textContent = result.fileName || '문서명 없음';
-    documentId.textContent = `ID: ${result.docId || 'N/A'}`;
-    pageCount.textContent = `페이지: ${result.totalPages || 'N/A'}`;
+    if (documentTitle) documentTitle.textContent = result.fileName || '문서명 없음';
+    if (documentId) documentId.textContent = `ID: ${result.docId || 'N/A'}`;
+    if (pageCount) pageCount.textContent = `페이지: ${result.totalPages || 'N/A'}`;
 
-    rawTextContent.innerHTML = `<p class="whitespace-pre-wrap">${result.rawText || '텍스트 없음'}</p>`;
+    if (rawTextContent) {
+        rawTextContent.innerHTML = `<p class="whitespace-pre-wrap">${result.rawText || '텍스트 없음'}</p>`;
+    }
 
-    contractorAInput.value = result.contractorA || '';
-    contractorBInput.value = result.contractorB || '';
-    startDateInput.value = result.startDate || '';
-    endDateInput.value = result.endDate || '';
+    if (contractorAInput) contractorAInput.value = result.contractorA || '';
+    if (contractorBInput) contractorBInput.value = result.contractorB || '';
+    if (startDateInput) startDateInput.value = result.startDate || '';
+    if (endDateInput) endDateInput.value = result.endDate || '';
     
-    const formattedAmount = result.amount ? Number(result.amount).toLocaleString('ko-KR') : '';
-    amountInput.value = formattedAmount;
+    if (amountInput) {
+        const formattedAmount = result.amount ? Number(result.amount).toLocaleString('ko-KR') : '';
+        amountInput.value = formattedAmount;
+    }
 
     const confidence = Math.round((result.confidence || 0) * 100);
-    confidenceDisplay.textContent = `신뢰도: ${confidence}%`;
-    
-    if (confidence >= 80) {
-        confidenceDisplay.className = 'text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded';
-    } else if (confidence >= 50) {
-        confidenceDisplay.className = 'text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded';
-    } else {
-        confidenceDisplay.className = 'text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded';
+    if (confidenceDisplay) {
+        confidenceDisplay.textContent = `신뢰도: ${confidence}%`;
+        
+        if (confidence >= 80) {
+            confidenceDisplay.className = 'text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded';
+        } else if (confidence >= 50) {
+            confidenceDisplay.className = 'text-xs bg-yellow-100 text-yellow-700 px-2 py-0.5 rounded';
+        } else {
+            confidenceDisplay.className = 'text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded';
+        }
     }
 
     if (result.logs && Array.isArray(result.logs)) {
@@ -113,8 +119,10 @@ function updateUI(result) {
     }
 }
 
-// Log Function
+// Log Function with null check
 function addLog(level, message) {
+    if (!logWindow) return;
+    
     const logEntry = document.createElement('div');
     const timestamp = new Date().toLocaleTimeString();
     
@@ -135,12 +143,14 @@ function addLog(level, message) {
 
 // Load Recent Documents
 async function loadRecentDocuments() {
+    if (!recentDocuments) return;
+    
     try {
         const response = await fetch(DOCUMENTS_API);
         if (!response.ok) return;
 
         const documents = await response.json();
-        documentCount.textContent = `${documents.length} 건`;
+        if (documentCount) documentCount.textContent = `${documents.length} 건`;
 
         recentDocuments.innerHTML = documents.map(doc => `
             <div class="px-4 py-3 border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition"
@@ -193,14 +203,14 @@ async function loadDocument(docId) {
 // Export to CSV
 function exportToCSV() {
     const data = {
-        DocID: documentId.textContent.replace('ID: ', '').trim(),
-        FileName: documentTitle.textContent.trim(),
-        ContractorA: contractorAInput.value.trim(),
-        ContractorB: contractorBInput.value.trim(),
-        StartDate: startDateInput.value.trim(),
-        EndDate: endDateInput.value.trim(),
-        Amount: amountInput.value.trim().replaceAll(',', ''),
-        Confidence: confidenceDisplay.textContent.replace('신뢰도: ', '').trim()
+        DocID: documentId ? documentId.textContent.replace('ID: ', '').trim() : 'N/A',
+        FileName: documentTitle ? documentTitle.textContent.trim() : 'N/A',
+        ContractorA: contractorAInput ? contractorAInput.value.trim() : '',
+        ContractorB: contractorBInput ? contractorBInput.value.trim() : '',
+        StartDate: startDateInput ? startDateInput.value.trim() : '',
+        EndDate: endDateInput ? endDateInput.value.trim() : '',
+        Amount: amountInput ? amountInput.value.trim().replaceAll(',', '') : '',
+        Confidence: confidenceDisplay ? confidenceDisplay.textContent.replace('신뢰도: ', '').trim() : '0%'
     };
 
     const headers = Object.keys(data);
@@ -222,6 +232,8 @@ function exportToCSV() {
 
 // Verify Document
 function verifyDocument() {
+    if (!verifyButton) return;
+    
     addLog('INFO', '문서 검증 완료');
     verifyButton.innerHTML = '<i class="fas fa-check mr-1"></i> 검증 완료됨';
     verifyButton.disabled = true;
@@ -230,6 +242,8 @@ function verifyDocument() {
 
 // Drag and Drop
 function setupDragAndDrop() {
+    if (!uploadButton) return;
+    
     const dropZone = uploadButton;
 
     ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
@@ -262,9 +276,13 @@ function handleDrop(e) {
 
 // UI State Functions
 function showProcessing() {
-    rawTextContent.innerHTML = '<div class="text-center text-slate-400"><i class="fas fa-spinner fa-spin text-2xl"></i><p class="mt-2">처리 중...</p></div>';
+    if (rawTextContent) {
+        rawTextContent.innerHTML = '<div class="text-center text-slate-400"><i class="fas fa-spinner fa-spin text-2xl"></i><p class="mt-2">처리 중...</p></div>';
+    }
 }
 
 function showError() {
-    rawTextContent.innerHTML = '<div class="text-center text-red-400"><i class="fas fa-exclamation-triangle text-2xl"></i><p class="mt-2">처리 실패</p></div>';
+    if (rawTextContent) {
+        rawTextContent.innerHTML = '<div class="text-center text-red-400"><i class="fas fa-exclamation-triangle text-2xl"></i><p class="mt-2">처리 실패</p></div>';
+    }
 }
