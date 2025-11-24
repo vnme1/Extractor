@@ -1,8 +1,11 @@
 package com.securedoc.extractor.controller;
 
-import com.securedoc.extractor.model.ExtractionLog;
+import com.securedoc.extractor.model.Document;
 import com.securedoc.extractor.model.ExtractionResult;
+import com.securedoc.extractor.service.DocumentService;
 import com.securedoc.extractor.service.PdfExtractionService;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -14,79 +17,126 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/extract")
+@RequiredArgsConstructor
+@Slf4j
 public class FileExtractionController {
 
-    // 파일을 임시 저장할 로컬 디렉토리
     private static final String UPLOAD_DIR = "uploaded_files/";
+    private static final long MAX_FILE_SIZE = 50 * 1024 * 1024;
+    private static final String[] ALLOWED_EXTENSIONS = { ".pdf" };
 
     private final PdfExtractionService pdfExtractionService;
-
-    // Service 생성자 주입
-    public FileExtractionController(PdfExtractionService pdfExtractionService) {
-        this.pdfExtractionService = pdfExtractionService;
-    }
+    private final DocumentService documentService;
 
     @PostMapping("/upload")
     public ResponseEntity<ExtractionResult> uploadAndExtract(@RequestParam("file") MultipartFile file) {
 
         if (file.isEmpty()) {
-            ExtractionResult errorResult = new ExtractionResult();
-            errorResult.setStatus("error");
-            errorResult.setLogs(List.of(new ExtractionLog("ERROR", "업로드할 파일이 없습니다.")));
-            return new ResponseEntity<>(errorResult, HttpStatus.BAD_REQUEST);
+            return createErrorResponse("업로드할 파일이 없습니다", HttpStatus.BAD_REQUEST);
         }
 
-        Path filePath = null; // 오류 해결을 위해 블록 밖에서 선언
+        if (file.getSize() > MAX_FILE_SIZE) {
+            return createErrorResponse("파일 크기가 50MB를 초과합니다", HttpStatus.BAD_REQUEST);
+        }
+
+        String originalFilename = file.getOriginalFilename();
+        if (!isValidFileExtension(originalFilename)) {
+            return createErrorResponse("PDF 파일만 업로드 가능합니다", HttpStatus.BAD_REQUEST);
+        }
+
+        Path tempFilePath = null;
 
         try {
-            // 1. 파일 저장 로직
-            Path uploadPath = Paths.get(UPLOAD_DIR);
-            if (!Files.exists(uploadPath)) {
-                Files.createDirectories(uploadPath);
-            }
+            tempFilePath = saveTempFile(file);
 
-            String originalFileName = file.getOriginalFilename();
-            // 고유 파일명 생성
-            String storedFileName = System.currentTimeMillis() + "_" + originalFileName;
+            ExtractionResult result = pdfExtractionService.processPdfFile(tempFilePath.toFile());
 
-            filePath = uploadPath.resolve(storedFileName);
-            file.transferTo(filePath);
+            documentService.saveExtractionResult(result);
 
-            File storedFile = filePath.toFile();
+            log.info("파일 처리 완료: {}", originalFilename);
+            return ResponseEntity.ok(result);
 
-            // 2. Service 호출 및 추출 실행
-            ExtractionResult result = pdfExtractionService.processPdfFile(storedFile);
-
-            // 3. 파일 처리 후 임시 파일을 삭제
-            if (storedFile.exists()) {
-                Files.delete(filePath);
-                System.out.println("임시 파일 삭제 완료: " + storedFile.getName());
-            }
-
-            return new ResponseEntity<>(result, HttpStatus.OK);
+        } catch (IOException e) {
+            log.error("파일 저장 실패: {}", originalFilename, e);
+            return createErrorResponse("파일 저장 중 오류 발생", HttpStatus.INTERNAL_SERVER_ERROR);
 
         } catch (Exception e) {
-            System.err.println("파일 처리 중 오류 발생: " + e.getMessage());
+            log.error("파일 처리 실패: {}", originalFilename, e);
+            return createErrorResponse("파일 처리 중 오류 발생: " + e.getMessage(),
+                    HttpStatus.INTERNAL_SERVER_ERROR);
 
-            // 4. 에러 발생 시 파일 삭제 시도 (Clean-up)
-            if (filePath != null && Files.exists(filePath)) {
-                try {
-                    Files.delete(filePath);
-                    System.out.println("오류 발생 후 임시 파일 삭제 완료.");
-                } catch (IOException deleteEx) {
-                    System.err.println("임시 파일 삭제 실패: " + deleteEx.getMessage());
-                }
-            }
-
-            // 에러 ExtractionResult 객체 생성 및 반환
-            ExtractionResult errorResult = new ExtractionResult();
-            errorResult.setStatus("error");
-            errorResult.setConfidence(0.0);
-            errorResult.setLogs(List.of(new ExtractionLog("FATAL", "서버 오류: " + e.getMessage())));
-            return new ResponseEntity<>(errorResult, HttpStatus.INTERNAL_SERVER_ERROR);
+        } finally {
+            cleanupTempFile(tempFilePath);
         }
+    }
+
+    @GetMapping("/documents")
+    public ResponseEntity<List<Document>> getAllDocuments() {
+        return ResponseEntity.ok(documentService.findAllDocuments());
+    }
+
+    @GetMapping("/documents/recent")
+    public ResponseEntity<List<Document>> getRecentDocuments() {
+        return ResponseEntity.ok(documentService.findRecentDocuments());
+    }
+
+    @GetMapping("/documents/{docId}")
+    public ResponseEntity<Document> getDocument(@PathVariable String docId) {
+        return documentService.findByDocId(docId)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    private Path saveTempFile(MultipartFile file) throws IOException {
+        Path uploadPath = Paths.get(UPLOAD_DIR);
+        if (!Files.exists(uploadPath)) {
+            Files.createDirectories(uploadPath);
+        }
+
+        String uniqueFilename = UUID.randomUUID() + "_" + file.getOriginalFilename();
+        Path filePath = uploadPath.resolve(uniqueFilename);
+
+        file.transferTo(filePath);
+        log.debug("임시 파일 저장: {}", filePath);
+
+        return filePath;
+    }
+
+    private void cleanupTempFile(Path filePath) {
+        if (filePath != null && Files.exists(filePath)) {
+            try {
+                Files.delete(filePath);
+                log.debug("임시 파일 삭제: {}", filePath);
+            } catch (IOException e) {
+                log.warn("임시 파일 삭제 실패: {}", filePath, e);
+            }
+        }
+    }
+
+    private boolean isValidFileExtension(String filename) {
+        if (filename == null) {
+            return false;
+        }
+
+        String lowerFilename = filename.toLowerCase();
+        for (String ext : ALLOWED_EXTENSIONS) {
+            if (lowerFilename.endsWith(ext)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private ResponseEntity<ExtractionResult> createErrorResponse(String message, HttpStatus status) {
+        ExtractionResult errorResult = new ExtractionResult();
+        errorResult.setStatus("error");
+        errorResult.setConfidence(0.0);
+        errorResult.addLog("ERROR", message);
+
+        return new ResponseEntity<>(errorResult, status);
     }
 }

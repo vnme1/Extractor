@@ -9,5 +9,4 @@ public class ExtractorApplication {
 	public static void main(String[] args) {
 		SpringApplication.run(ExtractorApplication.class, args);
 	}
-
 }

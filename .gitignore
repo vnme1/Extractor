@@ -31,3 +31,13 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Application ###
+uploaded_files/
+data/
+*.log
+*.pid
+
+### OS ###
+.DS_Store
+Thumbs.db
