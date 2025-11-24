@@ -3,10 +3,18 @@ package com.securedoc.extractor.controller;
 import com.securedoc.extractor.model.Document;
 import com.securedoc.extractor.model.ExtractionResult;
 import com.securedoc.extractor.service.DocumentService;
+import com.securedoc.extractor.service.ExcelExportService;
 import com.securedoc.extractor.service.PdfExtractionService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
@@ -35,6 +43,7 @@ public class FileExtractionController {
 
     private final PdfExtractionService pdfExtractionService;
     private final DocumentService documentService;
+    private final ExcelExportService excelExportService;
 
     @PostMapping("/upload")
     public ResponseEntity<ExtractionResult> uploadAndExtract(
@@ -94,6 +103,29 @@ public class FileExtractionController {
         return ResponseEntity.ok(documentService.findAllDocuments());
     }
 
+    /**
+     * 페이지네이션을 지원하는 문서 조회
+     * @param page 페이지 번호 (0부터 시작, 기본값: 0)
+     * @param size 페이지 크기 (기본값: 20)
+     * @param sort 정렬 기준 (기본값: createdAt,desc)
+     */
+    @GetMapping("/documents/paginated")
+    public ResponseEntity<Page<Document>> getDocumentsWithPagination(
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size,
+            @RequestParam(defaultValue = "createdAt") String sortBy,
+            @RequestParam(defaultValue = "desc") String sortDir) {
+
+        Sort sort = sortDir.equalsIgnoreCase("asc")
+            ? Sort.by(sortBy).ascending()
+            : Sort.by(sortBy).descending();
+
+        Pageable pageable = PageRequest.of(page, size, sort);
+        Page<Document> documents = documentService.findDocumentsWithPagination(pageable);
+
+        return ResponseEntity.ok(documents);
+    }
+
     @GetMapping("/documents/recent")
     public ResponseEntity<List<Document>> getRecentDocuments() {
         return ResponseEntity.ok(documentService.findRecentDocuments());
@@ -104,6 +136,66 @@ public class FileExtractionController {
         return documentService.findByDocId(docId)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    /**
+     * 단일 문서 Excel 다운로드
+     */
+    @GetMapping("/documents/{docId}/export/excel")
+    public ResponseEntity<ByteArrayResource> exportDocumentToExcel(@PathVariable String docId) {
+        try {
+            Document document = documentService.findByDocId(docId)
+                    .orElseThrow(() -> new IllegalArgumentException("문서를 찾을 수 없습니다: " + docId));
+
+            byte[] excelData = excelExportService.exportSingleDocumentToExcel(document);
+
+            ByteArrayResource resource = new ByteArrayResource(excelData);
+
+            String filename = document.getFileName().replaceAll("\\.pdf$", "") + "_추출결과.xlsx";
+
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" +
+                            java.net.URLEncoder.encode(filename, "UTF-8").replace("+", "%20"))
+                    .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                    .contentLength(excelData.length)
+                    .body(resource);
+
+        } catch (Exception e) {
+            log.error("Excel 내보내기 실패: {}", docId, e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    /**
+     * 전체 문서 Excel 다운로드
+     */
+    @GetMapping("/documents/export/excel")
+    public ResponseEntity<ByteArrayResource> exportAllDocumentsToExcel() {
+        try {
+            List<Document> documents = documentService.findAllDocuments();
+
+            if (documents.isEmpty()) {
+                return ResponseEntity.noContent().build();
+            }
+
+            byte[] excelData = excelExportService.exportMultipleDocumentsToExcel(documents);
+
+            ByteArrayResource resource = new ByteArrayResource(excelData);
+
+            String filename = "문서목록_" + java.time.LocalDateTime.now().format(
+                    java.time.format.DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss")) + ".xlsx";
+
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" +
+                            java.net.URLEncoder.encode(filename, "UTF-8").replace("+", "%20"))
+                    .contentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                    .contentLength(excelData.length)
+                    .body(resource);
+
+        } catch (Exception e) {
+            log.error("Excel 전체 내보내기 실패", e);
+            return ResponseEntity.internalServerError().build();
+        }
     }
 
     private Path saveTempFile(MultipartFile file) throws IOException {

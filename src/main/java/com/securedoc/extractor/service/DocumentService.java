@@ -5,6 +5,8 @@ import com.securedoc.extractor.model.ExtractionResult;
 import com.securedoc.extractor.repository.DocumentRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,6 +45,13 @@ public class DocumentService {
 
     public List<Document> findAllDocuments() {
         return documentRepository.findAll();
+    }
+
+    /**
+     * 페이지네이션을 사용한 문서 조회
+     */
+    public Page<Document> findDocumentsWithPagination(Pageable pageable) {
+        return documentRepository.findAll(pageable);
     }
 
     public List<Document> findRecentDocuments() {

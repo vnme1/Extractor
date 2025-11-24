@@ -28,15 +28,20 @@ const endDateInput = document.getElementById('endDateInput');
 const amountInput = document.getElementById('amountInput');
 
 const exportButton = document.getElementById('exportButton');
+const exportExcelButton = document.getElementById('exportExcelButton');
 const verifyButton = document.getElementById('verifyButton');
+
+// 현재 문서 ID 저장
+let currentDocId = null;
 
 // Event Listeners
 document.addEventListener('DOMContentLoaded', () => {
     if (uploadButton) uploadButton.addEventListener('click', () => fileInput.click());
     if (fileInput) fileInput.addEventListener('change', handleFileSelect);
     if (exportButton) exportButton.addEventListener('click', exportToCSV);
+    if (exportExcelButton) exportExcelButton.addEventListener('click', exportToExcel);
     if (verifyButton) verifyButton.addEventListener('click', verifyDocument);
-    
+
     setupDragAndDrop();
     loadRecentDocuments();
 });
@@ -91,6 +96,9 @@ async function uploadFile(file) {
 
 // UI Update Function with null checks
 function updateUI(result) {
+    // 현재 문서 ID 저장
+    currentDocId = result.docId;
+
     if (documentTitle) documentTitle.textContent = result.fileName || '문서명 없음';
     if (documentId) documentId.textContent = `ID: ${result.docId || 'N/A'}`;
     if (pageCount) pageCount.textContent = `페이지: ${result.totalPages || 'N/A'}`;
@@ -237,6 +245,21 @@ function exportToCSV() {
     
     URL.revokeObjectURL(url);
     addLog('INFO', 'CSV 파일로 내보내기 완료');
+}
+
+// Export to Excel
+function exportToExcel() {
+    if (!currentDocId) {
+        addLog('WARN', '내보낼 문서가 없습니다');
+        return;
+    }
+
+    addLog('INFO', 'Excel 파일로 내보내는 중...');
+
+    // Excel 다운로드 API 호출
+    window.location.href = `/api/extract/documents/${currentDocId}/export/excel`;
+
+    addLog('INFO', 'Excel 파일 다운로드 시작');
 }
 
 // Verify Document
