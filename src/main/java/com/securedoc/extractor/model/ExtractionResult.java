@@ -19,7 +19,7 @@ public class ExtractionResult {
     private String contractorB;
     private String startDate;
     private String endDate;
-    private long amount;
+    private long amount = -1; // -1은 추출 실패를 의미
     private double confidence = 0.0;
 
     private String status = "processing";

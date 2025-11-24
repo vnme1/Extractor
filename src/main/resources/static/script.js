@@ -1,6 +1,14 @@
 const API_URL = '/api/extract/upload';
 const DOCUMENTS_API = '/api/extract/documents/recent';
 
+// HTML 이스케이프 함수 (XSS 방어)
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 // DOM Elements - null 체크 추가
 const fileInput = document.getElementById('fileInput');
 const uploadButton = document.getElementById('uploadButton');
@@ -88,7 +96,7 @@ function updateUI(result) {
     if (pageCount) pageCount.textContent = `페이지: ${result.totalPages || 'N/A'}`;
 
     if (rawTextContent) {
-        rawTextContent.innerHTML = `<p class="whitespace-pre-wrap">${result.rawText || '텍스트 없음'}</p>`;
+        rawTextContent.innerHTML = `<p class="whitespace-pre-wrap">${escapeHtml(result.rawText || '텍스트 없음')}</p>`;
     }
 
     if (contractorAInput) contractorAInput.value = result.contractorA || '';
@@ -97,7 +105,8 @@ function updateUI(result) {
     if (endDateInput) endDateInput.value = result.endDate || '';
     
     if (amountInput) {
-        const formattedAmount = result.amount ? Number(result.amount).toLocaleString('ko-KR') : '';
+        // amount가 -1이면 추출 실패, 0 이상이면 유효한 값
+        const formattedAmount = (result.amount >= 0) ? Number(result.amount).toLocaleString('ko-KR') : '';
         amountInput.value = formattedAmount;
     }
 
@@ -154,10 +163,10 @@ async function loadRecentDocuments() {
 
         recentDocuments.innerHTML = documents.map(doc => `
             <div class="px-4 py-3 border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition"
-                 onclick="loadDocument('${doc.docId}')">
-                <div class="text-sm font-medium text-slate-700 truncate">${doc.fileName}</div>
+                 onclick="loadDocument('${escapeHtml(doc.docId)}')">
+                <div class="text-sm font-medium text-slate-700 truncate">${escapeHtml(doc.fileName)}</div>
                 <div class="text-xs text-slate-400 mt-1">
-                    <span class="inline-block bg-slate-100 px-2 py-0.5 rounded mr-2">${doc.status}</span>
+                    <span class="inline-block bg-slate-100 px-2 py-0.5 rounded mr-2">${escapeHtml(doc.status)}</span>
                     ${new Date(doc.createdAt).toLocaleString('ko-KR')}
                 </div>
             </div>

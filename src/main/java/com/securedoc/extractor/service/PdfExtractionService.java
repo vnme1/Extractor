@@ -27,8 +27,17 @@ public class PdfExtractionService {
                     "(까지|まで)",
             Pattern.DOTALL);
 
-    private static final Pattern AMOUNT_PATTERN = Pattern.compile(
-            "(총\\s*계약\\s*금액은?|금액은?|계약금은?)\\s*([^원]*?([0-9,]+)\\s*원)",
+    // 여러 금액 패턴 시도
+    private static final Pattern AMOUNT_PATTERN_1 = Pattern.compile(
+            "(총\\s*계약\\s*금액은?|금액은?|계약금은?).*?[₩\\(]?([0-9,]+)\\)?\\s*원",
+            Pattern.CASE_INSENSITIVE);
+
+    private static final Pattern AMOUNT_PATTERN_2 = Pattern.compile(
+            "₩\\s*([0-9,]+)",
+            Pattern.CASE_INSENSITIVE);
+
+    private static final Pattern AMOUNT_PATTERN_3 = Pattern.compile(
+            "\\(\\s*([0-9,]+)\\s*원?\\)",
             Pattern.CASE_INSENSITIVE);
 
     private static final Pattern KOREAN_NUMBER_PATTERN = Pattern.compile(
@@ -61,12 +70,51 @@ public class PdfExtractionService {
     }
 
     private String extractTextFromPdf(File file, ExtractionResult result) throws IOException {
-        try (PDDocument document = PDDocument.load(file)) {
+        PDDocument document = null;
+        try {
+            document = PDDocument.load(file);
+
+            // 암호화된 PDF 체크
+            if (document.isEncrypted()) {
+                throw new IOException("암호화된 PDF 파일은 처리할 수 없습니다");
+            }
+
             result.setTotalPages(document.getNumberOfPages());
             result.addLog("INFO", "PDF 로드 완료 (총 " + document.getNumberOfPages() + " 페이지)");
 
+            // 페이지 수가 0인 경우 체크
+            if (document.getNumberOfPages() == 0) {
+                throw new IOException("유효한 페이지가 없는 PDF 파일입니다");
+            }
+
             PDFTextStripper stripper = new PDFTextStripper();
-            return stripper.getText(document);
+            String text = stripper.getText(document);
+
+            // 추출된 텍스트가 비어있는 경우 체크
+            if (text == null || text.trim().isEmpty()) {
+                result.addLog("WARN", "텍스트를 추출할 수 없습니다. 이미지 기반 PDF일 수 있습니다.");
+            }
+
+            return text != null ? text : "";
+
+        } catch (org.apache.pdfbox.pdmodel.encryption.InvalidPasswordException e) {
+            throw new IOException("암호화된 PDF 파일은 처리할 수 없습니다", e);
+        } catch (IOException e) {
+            if (e.getMessage() != null && (
+                e.getMessage().contains("expected='PDF'") ||
+                e.getMessage().contains("not a valid PDF") ||
+                e.getMessage().contains("Error: End-of-File"))) {
+                throw new IOException("손상되었거나 유효하지 않은 PDF 파일입니다", e);
+            }
+            throw e;
+        } finally {
+            if (document != null) {
+                try {
+                    document.close();
+                } catch (IOException e) {
+                    log.warn("PDF 문서 닫기 실패", e);
+                }
+            }
         }
     }
 
@@ -154,20 +202,50 @@ public class PdfExtractionService {
     }
 
     private void extractAmount(String text, ExtractionResult result) {
-        Matcher matcher = AMOUNT_PATTERN.matcher(text);
-
-        if (matcher.find()) {
-            String amountStr = matcher.group(3).replaceAll("[,\\s]", "");
-
-            try {
-                long amount = Long.parseLong(amountStr);
-                result.setAmount(amount);
-                result.addLog("INFO", "계약 금액 추출: " + String.format("%,d원", amount));
-            } catch (NumberFormatException e) {
-                result.addLog("WARN", "금액 파싱 실패: " + amountStr);
+        // 패턴 1: "총 계약 금액은 ... (₩100,000,000)" 형식
+        Matcher matcher1 = AMOUNT_PATTERN_1.matcher(text);
+        if (matcher1.find()) {
+            String amountStr = matcher1.group(2).replaceAll("[,\\s₩]", "");
+            if (tryParseAmount(amountStr, result, "패턴1")) {
+                return;
             }
-        } else {
-            result.addLog("WARN", "계약 금액 정보를 찾을 수 없습니다");
+        }
+
+        // 패턴 2: "₩100,000,000" 형식
+        Matcher matcher2 = AMOUNT_PATTERN_2.matcher(text);
+        if (matcher2.find()) {
+            String amountStr = matcher2.group(1).replaceAll("[,\\s]", "");
+            if (tryParseAmount(amountStr, result, "패턴2")) {
+                return;
+            }
+        }
+
+        // 패턴 3: "(100,000,000)" 괄호 안의 숫자
+        Matcher matcher3 = AMOUNT_PATTERN_3.matcher(text);
+        if (matcher3.find()) {
+            String amountStr = matcher3.group(1).replaceAll("[,\\s]", "");
+            if (tryParseAmount(amountStr, result, "패턴3")) {
+                return;
+            }
+        }
+
+        result.addLog("WARN", "계약 금액 정보를 찾을 수 없습니다");
+    }
+
+    private boolean tryParseAmount(String amountStr, ExtractionResult result, String patternName) {
+        try {
+            long amount = Long.parseLong(amountStr);
+            // 너무 작거나 큰 값 필터링 (1원 ~ 1조원)
+            if (amount < 1 || amount > 1_000_000_000_000L) {
+                result.addLog("WARN", String.format("%s: 금액이 범위를 벗어남 (%s)", patternName, amountStr));
+                return false;
+            }
+            result.setAmount(amount);
+            result.addLog("INFO", String.format("%s로 계약 금액 추출: %,d원", patternName, amount));
+            return true;
+        } catch (NumberFormatException e) {
+            result.addLog("WARN", String.format("%s: 금액 파싱 실패 (%s)", patternName, amountStr));
+            return false;
         }
     }
 
@@ -183,7 +261,8 @@ public class PdfExtractionService {
             filledFields++;
         if (result.getEndDate() != null && !result.getEndDate().isBlank())
             filledFields++;
-        if (result.getAmount() > 0)
+        // 금액이 0 이상이면 추출된 것으로 간주 (0원 계약도 유효할 수 있음)
+        if (result.getAmount() >= 0)
             filledFields++;
 
         double confidence = (double) filledFields / totalFields;

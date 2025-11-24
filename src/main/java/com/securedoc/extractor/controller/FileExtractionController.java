@@ -8,8 +8,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+
+import jakarta.validation.constraints.NotNull;
 
 import java.io.File;
 import java.io.IOException;
@@ -23,6 +26,7 @@ import java.util.UUID;
 @RequestMapping("/api/extract")
 @RequiredArgsConstructor
 @Slf4j
+@Validated
 public class FileExtractionController {
 
     private static final String UPLOAD_DIR = "uploaded_files/";
@@ -33,9 +37,10 @@ public class FileExtractionController {
     private final DocumentService documentService;
 
     @PostMapping("/upload")
-    public ResponseEntity<ExtractionResult> uploadAndExtract(@RequestParam("file") MultipartFile file) {
+    public ResponseEntity<ExtractionResult> uploadAndExtract(
+            @RequestParam("file") @NotNull(message = "파일이 필요합니다") MultipartFile file) {
 
-        if (file.isEmpty()) {
+        if (file == null || file.isEmpty()) {
             return createErrorResponse("업로드할 파일이 없습니다", HttpStatus.BAD_REQUEST);
         }
 
@@ -44,7 +49,17 @@ public class FileExtractionController {
         }
 
         String originalFilename = file.getOriginalFilename();
+        if (originalFilename == null || originalFilename.trim().isEmpty()) {
+            return createErrorResponse("파일명이 유효하지 않습니다", HttpStatus.BAD_REQUEST);
+        }
+
         if (!isValidFileExtension(originalFilename)) {
+            return createErrorResponse("PDF 파일만 업로드 가능합니다", HttpStatus.BAD_REQUEST);
+        }
+
+        // Content-Type 검증 추가
+        String contentType = file.getContentType();
+        if (contentType == null || !contentType.toLowerCase().contains("pdf")) {
             return createErrorResponse("PDF 파일만 업로드 가능합니다", HttpStatus.BAD_REQUEST);
         }
 
