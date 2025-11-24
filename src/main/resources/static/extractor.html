@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecureDoc Extractor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&family=Roboto+Mono:wght@400;500&display=swap');
+        
+        body { font-family: 'Noto Sans KR', sans-serif; background-color: #f1f5f9; color: #334155; }
+        .font-mono { font-family: 'Roboto Mono', monospace; }
+        
+        /* 스크롤바 스타일 (슬림) */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #e2e8f0; }
+        ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 3px; }
+        
+        .sidebar-item.active {
+            background-color: #e2e8f0;
+            border-right: 3px solid #3b82f6;
+        }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+
+    <header class="bg-slate-800 text-white h-14 flex items-center justify-between px-6 shadow-md z-10">
+        <div class="flex items-center gap-3">
+            <div class="bg-blue-500 text-white w-8 h-8 rounded flex items-center justify-center font-bold shadow-lg">
+                <i class="fas fa-file-contract"></i>
+            </div>
+            <span class="font-bold text-lg tracking-tight">SecureDoc <span class="font-light opacity-70">Enterprise</span></span>
+        </div>
+        <div class="flex items-center gap-4">
+            <div class="flex items-center gap-2 text-xs bg-slate-700 px-3 py-1 rounded-full text-emerald-400 border border-slate-600">
+                <i class="fas fa-shield-alt"></i>
+                <span>Local Processing Only (No External AI)</span>
+            </div>
+            <div class="w-8 h-8 bg-slate-600 rounded-full flex items-center justify-center text-xs">
+                Admin
+            </div>
+        </div>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden">
+        
+        <aside class="w-80 bg-white border-r border-slate-200 flex flex-col shadow-sm z-0">
+            <div class="p-4 border-b border-slate-100 bg-slate-50">
+                <input type="file" id="fileInput" accept="application/pdf" class="hidden"> 
+                
+                <button id="uploadButton" class="w-full py-3 border-2 border-dashed border-blue-300 bg-blue-50 text-blue-600 rounded-lg text-sm font-medium hover:bg-blue-100 transition flex flex-col items-center justify-center gap-1">
+                    <i class="fas fa-cloud-upload-alt text-lg"></i>
+                    <span>PDF 문서 업로드 (Drag & Drop)</span>
+                </button>
+            </div>
+
+            <div id="queueContainer" class="flex-1 overflow-y-auto">
+                <div class="px-4 py-3 text-xs font-bold text-slate-400 uppercase tracking-wider flex justify-between">
+                    <span>Processing Queue</span>
+                    <span>0 Files</span>
+                </div>
+
+                </div>
+        </aside>
+
+        <main class="flex-1 bg-slate-50 flex flex-col h-full overflow-hidden relative">
+            
+            <div class="h-14 bg-white border-b border-slate-200 flex justify-between items-center px-6">
+                <div class="flex gap-2">
+                    <button id="exportButton" class="px-3 py-1.5 text-sm border border-slate-300 rounded text-slate-600 hover:bg-slate-50 transition">
+                        <i class="fas fa-file-csv mr-1 text-green-600"></i> Excel 내보내기
+                    </button>
+                    <button class="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 transition shadow-sm">
+                        <i class="fas fa-check mr-1"></i> 검증 완료
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex flex-1 overflow-hidden p-6 gap-6">
+                
+                <div class="flex-1 bg-white rounded-lg shadow-sm border border-slate-200 flex flex-col">
+                    <div class="px-4 py-3 border-b border-slate-100 flex justify-between items-center bg-slate-50 rounded-t-lg">
+                        <h3 class="text-sm font-bold text-slate-700"><i class="fas fa-align-left mr-2"></i>Extracted Raw Text</h3>
+                        <span class="text-xs text-slate-400">페이지 수: N/A</span>
+                    </div>
+                    <div id="rawTextContent" class="flex-1 p-6 overflow-y-auto font-mono text-sm leading-relaxed text-slate-600 bg-slate-50/50">
+                        <p>
+                            PDF 파일을 업로드하시면 여기에 추출된 텍스트가 표시됩니다.
+                        </p>
+                    </div>
+                </div>
+
+                <div class="w-96 flex flex-col gap-4">
+                    <div class="bg-white rounded-lg shadow-sm border border-slate-200 p-5">
+                        <h3 class="text-sm font-bold text-slate-800 mb-4 flex items-center justify-between">
+                            <span><i class="fas fa-database mr-2 text-blue-500"></i>Structured Data</span>
+                            <span id="confidenceDisplay" class="text-xs bg-slate-100 text-slate-500 px-2 py-0.5 rounded">Confidence: 0%</span>
+                        </h3>
+
+                        <form class="space-y-4">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 mb-1">발주사 (갑)</label>
+                                <div class="relative">
+                                    <input type="text" id="contractorAInput" value="" class="w-full text-sm border border-slate-300 rounded px-3 py-2 focus:border-blue-500 focus:outline-none">
+                                    <i class="fas fa-question-circle absolute right-3 top-2.5 text-slate-400 text-xs validation-icon" data-field="contractorA"></i>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 mb-1">수주사 (을)</label>
+                                <div class="relative">
+                                    <input type="text" id="contractorBInput" value="" class="w-full text-sm border border-slate-300 rounded px-3 py-2 focus:border-blue-500 focus:outline-none">
+                                    <i class="fas fa-question-circle absolute right-3 top-2.5 text-slate-400 text-xs validation-icon" data-field="contractorB"></i>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 mb-1">계약 시작일</label>
+                                    <input type="text" id="startDateInput" value="" class="w-full text-sm border border-slate-300 rounded px-3 py-2">
+                                </div>
+                                <div>
+                                    <label class="block text-xs font-bold text-slate-500 mb-1">계약 종료일</label>
+                                    <input type="text" id="endDateInput" value="" class="w-full text-sm border border-slate-300 rounded px-3 py-2">
+                                </div>
+                            </div>
+
+                            <div>
+                                <label class="block text-xs font-bold text-slate-500 mb-1">총 계약 금액</label>
+                                <div class="flex items-center border border-slate-300 rounded px-3 overflow-hidden focus-within:border-blue-500">
+                                    <span class="text-slate-500 text-sm mr-2">₩</span>
+                                    <input type="text" id="amountInput" value="" class="w-full text-sm py-2 bg-transparent focus:outline-none font-bold text-slate-700 text-right">
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                    
+                    <div id="logWindow" class="bg-slate-800 text-slate-300 rounded-lg p-4 text-xs font-mono h-32 overflow-y-auto">
+                        <div class="text-white">> SecureDoc Extractor Ready.</div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <script src="script.js"></script>
+
+</body>
+</html>
