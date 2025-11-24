@@ -2,11 +2,15 @@ package com.securedoc.extractor.service;
 
 import com.securedoc.extractor.model.Document;
 import com.securedoc.extractor.model.ExtractionResult;
+import com.securedoc.extractor.model.User;
 import com.securedoc.extractor.repository.DocumentRepository;
+import com.securedoc.extractor.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,6 +23,7 @@ import java.util.Optional;
 public class DocumentService {
 
     private final DocumentRepository documentRepository;
+    private final UserRepository userRepository;
 
     @Transactional
     public Document saveExtractionResult(ExtractionResult result) {
@@ -34,6 +39,17 @@ public class DocumentService {
         document.setAmount(result.getAmount());
         document.setConfidence(result.getConfidence());
         document.setStatus(result.getStatus());
+
+        // 현재 로그인한 사용자를 소유자로 설정
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.isAuthenticated()
+                && !authentication.getPrincipal().equals("anonymousUser")) {
+            String username = authentication.getName();
+            User owner = userRepository.findByUsername(username)
+                    .orElse(null);
+            document.setOwner(owner);
+            log.debug("문서 소유자 설정: {}", username);
+        }
 
         log.info("문서 저장 완료: {}", document.getDocId());
         return documentRepository.save(document);

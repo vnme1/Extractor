@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecureDoc Login / Sign Up</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>📄</text></svg>">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
+
+        body {
+            font-family: 'Noto Sans KR', sans-serif;
+            background-color: #f1f5f9;
+            color: #334155;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px 0;
+        }
+        .tab-active {
+            border-bottom: 3px solid #3b82f6;
+            color: #1e293b;
+            font-weight: 700;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="w-full max-w-md">
+
+        <header class="text-center mb-8">
+            <div class="flex items-center justify-center gap-3">
+                <div class="bg-blue-500 text-white w-10 h-10 rounded flex items-center justify-center font-bold shadow-lg">
+                    <i class="fas fa-file-contract text-lg"></i>
+                </div>
+                <h1 class="font-bold text-3xl tracking-tight text-slate-800">SecureDoc <span class="font-light opacity-70 text-slate-600">Enterprise</span></h1>
+            </div>
+            <p class="text-slate-500 mt-2 text-sm" id="auth-subtitle">문서 정보 추출 시스템에 로그인하세요.</p>
+        </header>
+
+        <div class="bg-white rounded-lg shadow-xl border border-slate-200 overflow-hidden">
+
+            <div class="flex border-b border-slate-200">
+                <button id="loginTab" class="flex-1 py-4 text-center text-sm text-slate-500 hover:text-slate-800 transition tab-active">
+                    <i class="fas fa-sign-in-alt mr-2"></i> 로그인
+                </button>
+                <button id="registerTab" class="flex-1 py-4 text-center text-sm text-slate-500 hover:text-slate-800 transition">
+                    <i class="fas fa-user-plus mr-2"></i> 회원가입
+                </button>
+            </div>
+
+            <div class="p-8">
+
+                <form id="loginForm" class="space-y-5">
+
+                    <div>
+                        <label for="loginUsername" class="block text-sm font-medium text-slate-600 mb-1">사용자명</label>
+                        <input type="text" id="loginUsername" required
+                               class="w-full border border-slate-300 rounded-lg px-4 py-2.5 text-sm
+                                      focus:ring-blue-500 focus:border-blue-500 transition"
+                               placeholder="사용자명을 입력하세요">
+                    </div>
+
+                    <div>
+                        <label for="loginPassword" class="block text-sm font-medium text-slate-600 mb-1">비밀번호</label>
+                        <input type="password" id="loginPassword" required
+                               class="w-full border border-slate-300 rounded-lg px-4 py-2.5 text-sm
+                                      focus:ring-blue-500 focus:border-blue-500 transition"
+                               placeholder="비밀번호를 입력하세요">
+                    </div>
+
+                    <div id="loginMessage" class="text-sm hidden"></div>
+
+                    <button type="submit"
+                            class="w-full py-3 bg-blue-600 text-white font-semibold rounded-lg shadow-md
+                                   hover:bg-blue-700 transition duration-150 focus:outline-none
+                                   focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                        <i class="fas fa-sign-in-alt mr-2"></i> 로그인
+                    </button>
+                </form>
+
+                <form id="registerForm" class="space-y-5 hidden">
+
+                    <div>
+                        <label for="registerUsername" class="block text-sm font-medium text-slate-600 mb-1">사용자명</label>
+                        <input type="text" id="registerUsername" required
+                               minlength="3" maxlength="50"
+                               class="w-full border border-slate-300 rounded-lg px-4 py-2.5 text-sm
+                                      focus:ring-blue-500 focus:border-blue-500 transition"
+                               placeholder="3-50자 사이 (영문, 숫자)">
+                    </div>
+
+                    <div>
+                        <label for="registerEmail" class="block text-sm font-medium text-slate-600 mb-1">이메일 주소</label>
+                        <input type="email" id="registerEmail" required
+                               class="w-full border border-slate-300 rounded-lg px-4 py-2.5 text-sm
+                                      focus:ring-blue-500 focus:border-blue-500 transition"
+                               placeholder="계정으로 사용할 이메일을 입력하세요">
+                    </div>
+
+                    <div>
+                        <label for="registerPassword" class="block text-sm font-medium text-slate-600 mb-1">비밀번호</label>
+                        <input type="password" id="registerPassword" required
+                               minlength="8"
+                               class="w-full border border-slate-300 rounded-lg px-4 py-2.5 text-sm
+                                      focus:ring-blue-500 focus:border-blue-500 transition"
+                               placeholder="8자 이상">
+                    </div>
+
+                    <div id="registerMessage" class="text-sm hidden"></div>
+
+                    <button type="submit"
+                            class="w-full py-3 bg-green-600 text-white font-semibold rounded-lg shadow-md
+                                   hover:bg-green-700 transition duration-150 focus:outline-none
+                                   focus:ring-2 focus:ring-green-500 focus:ring-offset-2">
+                        <i class="fas fa-user-plus mr-2"></i> 계정 생성
+                    </button>
+                </form>
+            </div>
+
+        </div>
+    </div>
+
+    <script src="login.js"></script>
+
+</body>
+</html>

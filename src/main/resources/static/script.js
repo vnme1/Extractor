@@ -1,6 +1,42 @@
 const API_URL = '/api/extract/upload';
 const DOCUMENTS_API = '/api/extract/documents/recent';
 
+// JWT 토큰 가져오기
+function getAuthToken() {
+    return localStorage.getItem('token');
+}
+
+// 인증 헤더 추가
+function getAuthHeaders() {
+    const token = getAuthToken();
+    const headers = {
+        'Content-Type': 'application/json'
+    };
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+    return headers;
+}
+
+// 로그인 체크
+function checkAuth() {
+    const token = getAuthToken();
+    if (!token) {
+        window.location.href = '/login.html';
+        return false;
+    }
+    return true;
+}
+
+// 로그아웃
+function logout() {
+    localStorage.removeItem('token');
+    localStorage.removeItem('username');
+    localStorage.removeItem('email');
+    localStorage.removeItem('role');
+    window.location.href = '/login.html';
+}
+
 // HTML 이스케이프 함수 (XSS 방어)
 function escapeHtml(text) {
     if (!text) return '';
@@ -36,6 +72,21 @@ let currentDocId = null;
 
 // Event Listeners
 document.addEventListener('DOMContentLoaded', () => {
+    // 로그인 체크
+    if (!checkAuth()) return;
+
+    // 사용자 정보 표시
+    const username = localStorage.getItem('username');
+    if (username) {
+        const userDisplay = document.querySelector('.w-8.h-8.bg-slate-600');
+        if (userDisplay) {
+            userDisplay.textContent = username.substring(0, 2).toUpperCase();
+            userDisplay.title = username;
+            userDisplay.classList.add('cursor-pointer');
+            userDisplay.addEventListener('click', logout);
+        }
+    }
+
     if (uploadButton) uploadButton.addEventListener('click', () => fileInput.click());
     if (fileInput) fileInput.addEventListener('change', handleFileSelect);
     if (exportButton) exportButton.addEventListener('click', exportToCSV);
@@ -71,12 +122,24 @@ async function uploadFile(file) {
     formData.append('file', file);
 
     try {
+        const token = getAuthToken();
+        const headers = {};
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
         const response = await fetch(API_URL, {
             method: 'POST',
+            headers: headers,
             body: formData
         });
 
         if (!response.ok) {
+            if (response.status === 401 || response.status === 403) {
+                addLog('ERROR', '인증이 만료되었습니다. 다시 로그인해주세요');
+                setTimeout(() => logout(), 2000);
+                return;
+            }
             const errorData = await response.json();
             throw new Error(errorData.logs?.[0]?.message || '서버 오류 발생');
         }
@@ -161,10 +224,21 @@ function addLog(level, message) {
 // Load Recent Documents
 async function loadRecentDocuments() {
     if (!recentDocuments) return;
-    
+
     try {
-        const response = await fetch(DOCUMENTS_API);
-        if (!response.ok) return;
+        const token = getAuthToken();
+        const headers = {};
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        const response = await fetch(DOCUMENTS_API, { headers });
+        if (!response.ok) {
+            if (response.status === 401 || response.status === 403) {
+                logout();
+            }
+            return;
+        }
 
         const documents = await response.json();
         if (documentCount) documentCount.textContent = `${documents.length} 건`;
@@ -188,8 +262,19 @@ async function loadRecentDocuments() {
 // Load Specific Document
 async function loadDocument(docId) {
     try {
-        const response = await fetch(`/api/extract/documents/${docId}`);
-        if (!response.ok) return;
+        const token = getAuthToken();
+        const headers = {};
+        if (token) {
+            headers['Authorization'] = `Bearer ${token}`;
+        }
+
+        const response = await fetch(`/api/extract/documents/${docId}`, { headers });
+        if (!response.ok) {
+            if (response.status === 401 || response.status === 403) {
+                logout();
+            }
+            return;
+        }
 
         const doc = await response.json();
         

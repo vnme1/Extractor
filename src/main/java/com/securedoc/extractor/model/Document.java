@@ -41,6 +41,10 @@ public class Document {
     @Column(nullable = false)
     private String status;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "owner_id")
+    private User owner;
+
     @Column(updatable = false)
     private LocalDateTime createdAt;
 
