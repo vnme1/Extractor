@@ -70,6 +70,11 @@ const verifyButton = document.getElementById('verifyButton');
 // 현재 문서 ID 저장
 let currentDocId = null;
 
+// 페이지 로드 전 즉시 인증 체크 (화면이 보이기 전에 리다이렉트)
+if (!getAuthToken()) {
+    window.location.href = '/login.html';
+}
+
 // Event Listeners
 document.addEventListener('DOMContentLoaded', () => {
     // 로그인 체크
@@ -77,13 +82,26 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 사용자 정보 표시
     const username = localStorage.getItem('username');
+    const role = localStorage.getItem('role');
+
     if (username) {
         const userDisplay = document.querySelector('.w-8.h-8.bg-slate-600');
         if (userDisplay) {
             userDisplay.textContent = username.substring(0, 2).toUpperCase();
-            userDisplay.title = username;
-            userDisplay.classList.add('cursor-pointer');
+            userDisplay.title = `${username} - 로그아웃`;
             userDisplay.addEventListener('click', logout);
+        }
+    }
+
+    // 관리자 전용 UI 표시
+    if (role === 'ADMIN') {
+        const auditLogLink = document.getElementById('auditLogLink');
+        if (auditLogLink) {
+            auditLogLink.classList.remove('hidden');
+        }
+        const userManagementLink = document.getElementById('userManagementLink');
+        if (userManagementLink) {
+            userManagementLink.classList.remove('hidden');
         }
     }
 

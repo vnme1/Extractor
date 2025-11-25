@@ -45,7 +45,14 @@
                 <i class="fas fa-shield-alt"></i>
                 <span>Local Processing Only</span>
             </div>
-            <div class="w-8 h-8 bg-slate-600 rounded-full flex items-center justify-center text-xs">
+            <!-- 관리자 전용 링크 -->
+            <a id="auditLogLink" href="/audit-log.html" class="hidden text-sm text-slate-300 hover:text-white transition">
+                <i class="fas fa-clipboard-list mr-1"></i> 감사 로그
+            </a>
+            <a id="userManagementLink" href="/user-management.html" class="hidden text-sm text-slate-300 hover:text-white transition">
+                <i class="fas fa-users mr-1"></i> 사용자 관리
+            </a>
+            <div class="w-8 h-8 bg-slate-600 rounded-full flex items-center justify-center text-xs cursor-pointer" title="로그아웃">
                 AD
             </div>
         </div>

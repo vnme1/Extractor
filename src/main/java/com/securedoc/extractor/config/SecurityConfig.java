@@ -34,11 +34,16 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
+                                "/",
                                 "/api/auth/**",
                                 "/index.html",
                                 "/login.html",
+                                "/audit-log.html",
+                                "/user-management.html",
                                 "/script.js",
                                 "/login.js",
+                                "/audit-log.js",
+                                "/user-management.js",
                                 "/actuator/**",
                                 "/h2-console/**"
                         ).permitAll()

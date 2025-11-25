@@ -1,5 +1,6 @@
 package com.securedoc.extractor.service;
 
+import com.securedoc.extractor.model.AuditLog;
 import com.securedoc.extractor.model.Document;
 import com.securedoc.extractor.model.ExtractionResult;
 import com.securedoc.extractor.model.User;
@@ -24,6 +25,7 @@ public class DocumentService {
 
     private final DocumentRepository documentRepository;
     private final UserRepository userRepository;
+    private final AuditLogService auditLogService;
 
     @Transactional
     public Document saveExtractionResult(ExtractionResult result) {
@@ -52,11 +54,25 @@ public class DocumentService {
         }
 
         log.info("문서 저장 완료: {}", document.getDocId());
-        return documentRepository.save(document);
+        Document savedDocument = documentRepository.save(document);
+
+        // 감사 로그 기록
+        auditLogService.logDocument(AuditLog.ActionType.DOCUMENT_UPLOAD, document.getDocId(),
+                String.format("문서 업로드: %s (%d 페이지)", document.getFileName(), document.getTotalPages()));
+
+        return savedDocument;
     }
 
     public Optional<Document> findByDocId(String docId) {
-        return documentRepository.findByDocId(docId);
+        Optional<Document> document = documentRepository.findByDocId(docId);
+
+        // 문서 조회 로그
+        if (document.isPresent()) {
+            auditLogService.logDocument(AuditLog.ActionType.DOCUMENT_VIEW, docId,
+                    String.format("문서 조회: %s", document.get().getFileName()));
+        }
+
+        return document;
     }
 
     public List<Document> findAllDocuments() {

@@ -3,9 +3,11 @@ package com.securedoc.extractor.controller;
 import com.securedoc.extractor.dto.AuthRequest;
 import com.securedoc.extractor.dto.AuthResponse;
 import com.securedoc.extractor.dto.RegisterRequest;
+import com.securedoc.extractor.model.AuditLog;
 import com.securedoc.extractor.model.User;
 import com.securedoc.extractor.repository.UserRepository;
 import com.securedoc.extractor.security.JwtUtil;
+import com.securedoc.extractor.service.AuditLogService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -28,6 +30,7 @@ public class AuthController {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    private final AuditLogService auditLogService;
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@Valid @RequestBody RegisterRequest request) {
@@ -54,6 +57,10 @@ public class AuthController {
             userRepository.save(user);
 
             log.info("새로운 사용자 등록: {}", user.getUsername());
+
+            // 감사 로그 기록
+            auditLogService.log(AuditLog.ActionType.REGISTER, "USER",
+                    String.format("사용자 등록: %s (%s)", user.getUsername(), user.getEmail()));
 
             return ResponseEntity.ok(new AuthResponse(
                     null,
@@ -86,6 +93,10 @@ public class AuthController {
 
             log.info("사용자 로그인: {}", user.getUsername());
 
+            // 감사 로그 기록
+            auditLogService.log(AuditLog.ActionType.LOGIN, "AUTH",
+                    String.format("로그인 성공: %s", user.getUsername()));
+
             return ResponseEntity.ok(new AuthResponse(
                     token,
                     user.getUsername(),
@@ -95,6 +106,11 @@ public class AuthController {
 
         } catch (Exception e) {
             log.error("로그인 실패: {}", request.getUsername(), e);
+
+            // 실패 로그 기록
+            auditLogService.logFailure(AuditLog.ActionType.LOGIN, "AUTH",
+                    String.format("로그인 실패: %s - %s", request.getUsername(), e.getMessage()));
+
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
                     .body(new AuthResponse(null, null, null, null, "사용자명 또는 비밀번호가 올바르지 않습니다"));
         }
