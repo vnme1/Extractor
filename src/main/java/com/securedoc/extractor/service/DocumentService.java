@@ -98,4 +98,61 @@ public class DocumentService {
             log.info("문서 상태 업데이트: {} -> {}", docId, status);
         });
     }
+
+    /**
+     * 단일 문서 삭제
+     */
+    @Transactional
+    public boolean deleteDocument(String docId) {
+        Optional<Document> documentOpt = documentRepository.findByDocId(docId);
+
+        if (documentOpt.isPresent()) {
+            Document document = documentOpt.get();
+
+            // 감사 로그 기록
+            auditLogService.logDocument(AuditLog.ActionType.DOCUMENT_DELETE, docId,
+                    String.format("문서 삭제: %s", document.getFileName()));
+
+            documentRepository.delete(document);
+            log.info("문서 삭제 완료: {}", docId);
+            return true;
+        }
+
+        log.warn("삭제할 문서를 찾을 수 없음: {}", docId);
+        return false;
+    }
+
+    /**
+     * 여러 문서 삭제
+     */
+    @Transactional
+    public int deleteDocuments(List<String> docIds) {
+        int deletedCount = 0;
+
+        for (String docId : docIds) {
+            if (deleteDocument(docId)) {
+                deletedCount++;
+            }
+        }
+
+        log.info("{}/{} 문서 삭제 완료", deletedCount, docIds.size());
+        return deletedCount;
+    }
+
+    /**
+     * 전체 문서 삭제 (관리자 전용)
+     */
+    @Transactional
+    public int deleteAllDocuments() {
+        List<Document> allDocuments = documentRepository.findAll();
+        int count = allDocuments.size();
+
+        // 감사 로그 기록
+        auditLogService.log(AuditLog.ActionType.DOCUMENT_DELETE, "ALL_DOCUMENTS",
+                String.format("전체 문서 삭제: %d건", count));
+
+        documentRepository.deleteAll();
+        log.warn("전체 문서 삭제 완료: {}건", count);
+        return count;
+    }
 }

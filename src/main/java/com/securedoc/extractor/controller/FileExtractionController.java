@@ -198,6 +198,68 @@ public class FileExtractionController {
         }
     }
 
+    /**
+     * 단일 문서 삭제
+     */
+    @DeleteMapping("/documents/{docId}")
+    public ResponseEntity<?> deleteDocument(@PathVariable String docId) {
+        try {
+            boolean deleted = documentService.deleteDocument(docId);
+
+            if (deleted) {
+                return ResponseEntity.ok().body("{\"message\": \"문서가 삭제되었습니다\", \"docId\": \"" + docId + "\"}");
+            } else {
+                return ResponseEntity.notFound().build();
+            }
+
+        } catch (Exception e) {
+            log.error("문서 삭제 실패: {}", docId, e);
+            return ResponseEntity.internalServerError()
+                    .body("{\"error\": \"문서 삭제 중 오류 발생\"}");
+        }
+    }
+
+    /**
+     * 여러 문서 삭제
+     */
+    @DeleteMapping("/documents")
+    public ResponseEntity<?> deleteDocuments(@RequestBody List<String> docIds) {
+        try {
+            if (docIds == null || docIds.isEmpty()) {
+                return ResponseEntity.badRequest()
+                        .body("{\"error\": \"삭제할 문서 ID가 필요합니다\"}");
+            }
+
+            int deletedCount = documentService.deleteDocuments(docIds);
+
+            return ResponseEntity.ok()
+                    .body("{\"message\": \"" + deletedCount + "개 문서가 삭제되었습니다\", \"count\": " + deletedCount + "}");
+
+        } catch (Exception e) {
+            log.error("여러 문서 삭제 실패", e);
+            return ResponseEntity.internalServerError()
+                    .body("{\"error\": \"문서 삭제 중 오류 발생\"}");
+        }
+    }
+
+    /**
+     * 전체 문서 삭제 (관리자 전용)
+     */
+    @DeleteMapping("/documents/all")
+    public ResponseEntity<?> deleteAllDocuments() {
+        try {
+            int deletedCount = documentService.deleteAllDocuments();
+
+            return ResponseEntity.ok()
+                    .body("{\"message\": \"전체 문서가 삭제되었습니다\", \"count\": " + deletedCount + "}");
+
+        } catch (Exception e) {
+            log.error("전체 문서 삭제 실패", e);
+            return ResponseEntity.internalServerError()
+                    .body("{\"error\": \"문서 삭제 중 오류 발생\"}");
+        }
+    }
+
     private Path saveTempFile(MultipartFile file) throws IOException {
         Path uploadPath = Paths.get(UPLOAD_DIR);
         if (!Files.exists(uploadPath)) {

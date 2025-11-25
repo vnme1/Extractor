@@ -21,7 +21,10 @@
         ::-webkit-scrollbar { width: 6px; height: 6px; }
         ::-webkit-scrollbar-track { background: #e2e8f0; }
         ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 3px; }
-        
+
+        .sidebar-item { border-right: 3px solid transparent; }
+        .sidebar-item.active { background-color: #e2e8f0; border-right: 3px solid #3b82f6; }
+
         .drop-zone.drag-over {
             background-color: #dbeafe;
             border-color: #3b82f6;
@@ -61,10 +64,33 @@
     <div class="flex flex-1 overflow-hidden">
         
         <!-- Sidebar -->
-        <aside class="w-80 bg-white border-r border-slate-200 flex flex-col shadow-sm">
+        <aside class="w-64 bg-white border-r border-slate-200 flex flex-col shadow-sm">
+            <!-- 네비게이션 메뉴 -->
+            <div class="p-4 border-b border-slate-100 bg-slate-50 text-center font-medium text-slate-700">
+                <i class="fas fa-cubes mr-2 text-blue-500"></i> 관리 시스템
+            </div>
+            <div class="border-b border-slate-200">
+                <a href="/index.html" class="sidebar-item active p-4 block cursor-pointer hover:bg-slate-50 transition">
+                    <i class="fas fa-search mr-2 text-blue-600"></i> 문서 추출
+                </a>
+                <a href="/dashboard.html" class="sidebar-item p-4 block cursor-pointer hover:bg-slate-50 transition">
+                    <i class="fas fa-tachometer-alt mr-2 text-slate-400"></i> 대시보드
+                </a>
+                <a href="/documents.html" class="sidebar-item p-4 block cursor-pointer hover:bg-slate-50 transition">
+                    <i class="fas fa-file-alt mr-2 text-slate-400"></i> 문서 목록
+                </a>
+                <a href="/audit-log.html" class="sidebar-item p-4 block cursor-pointer hover:bg-slate-50 transition">
+                    <i class="fas fa-shield-alt mr-2 text-slate-400"></i> 감사 로그
+                </a>
+                <a href="/user-management.html" class="sidebar-item p-4 block cursor-pointer hover:bg-slate-50 transition">
+                    <i class="fas fa-users mr-2 text-slate-400"></i> 사용자 관리
+                </a>
+            </div>
+
+            <!-- 업로드 영역 -->
             <div class="p-4 border-b border-slate-100 bg-slate-50">
-                <input type="file" id="fileInput" accept="application/pdf" class="hidden"> 
-                
+                <input type="file" id="fileInput" accept="application/pdf" class="hidden">
+
                 <button id="uploadButton" class="drop-zone w-full py-3 border-2 border-dashed border-blue-300 bg-blue-50 text-blue-600 rounded-lg text-sm font-medium hover:bg-blue-100 transition flex flex-col items-center justify-center gap-1">
                     <i class="fas fa-cloud-upload-alt text-lg"></i>
                     <span>PDF 문서 업로드</span>
@@ -73,12 +99,25 @@
             </div>
 
             <div class="px-4 py-3 text-xs font-bold text-slate-400 uppercase tracking-wider flex justify-between border-b">
-                <span>최근 문서</span>
+                <span>추출 이력</span>
                 <span id="documentCount">0 건</span>
             </div>
 
             <div id="recentDocuments" class="flex-1 overflow-y-auto">
                 <!-- 최근 문서 목록이 여기에 표시됩니다 -->
+            </div>
+
+            <!-- 삭제 버튼 -->
+            <div class="p-3 border-t bg-white flex gap-2">
+                <button id="deleteSelectedButton"
+                        disabled
+                        class="flex-1 bg-orange-500 text-white text-xs py-2 px-3 rounded hover:bg-orange-600 transition disabled:opacity-50 disabled:cursor-not-allowed">
+                    <i class="fas fa-trash mr-1"></i> 선택 삭제
+                </button>
+                <button id="deleteAllButton"
+                        class="bg-red-500 text-white text-xs py-2 px-3 rounded hover:bg-red-600 transition">
+                    <i class="fas fa-trash-alt mr-1"></i> 전체 삭제
+                </button>
             </div>
         </aside>
 

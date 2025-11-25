@@ -36,22 +36,26 @@ public class SecurityConfig {
                         .requestMatchers(
                                 "/",
                                 "/api/auth/**",
+                                "/api/dashboard/**",
+                                "/api/extract/**",
                                 "/index.html",
                                 "/login.html",
+                                "/dashboard.html",
+                                "/documents.html",
                                 "/audit-log.html",
                                 "/user-management.html",
                                 "/script.js",
                                 "/login.js",
+                                "/dashboard.js",
+                                "/documents.js",
                                 "/audit-log.js",
                                 "/user-management.js",
                                 "/actuator/**",
-                                "/h2-console/**"
-                        ).permitAll()
-                        .anyRequest().authenticated()
-                )
+                                "/h2-console/**")
+                        .permitAll()
+                        .anyRequest().authenticated())
                 .sessionManagement(session -> session
-                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-                )
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authenticationProvider(authenticationProvider())
                 .addFilterBefore(jwtAuthFilter, UsernamePasswordAuthenticationFilter.class);
 

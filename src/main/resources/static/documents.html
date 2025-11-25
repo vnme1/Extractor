@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SecureDoc - 전체 문서 목록</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='0.9em' font-size='90'>📄</text></svg>">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700&display=swap');
+        body { font-family: 'Noto Sans KR', sans-serif; background-color: #f1f5f9; color: #334155; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 3px; }
+        .sidebar-item { border-right: 3px solid transparent; }
+        .sidebar-item.active { background-color: #e2e8f0; border-right: 3px solid #3b82f6; }
+    </style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden">
+
+    <header class="bg-slate-800 text-white h-14 flex items-center justify-between px-6 shadow-md z-10">
+        <div class="flex items-center gap-3">
+            <div class="bg-blue-500 text-white w-8 h-8 rounded flex items-center justify-center font-bold shadow-lg">
+                <i class="fas fa-file-contract"></i>
+            </div>
+            <span class="font-bold text-lg tracking-tight">SecureDoc <span class="font-light opacity-70">Enterprise</span></span>
+        </div>
+        <div class="flex items-center gap-4">
+            <a href="/audit-log.html" class="text-sm text-slate-300 hover:text-white transition">
+                <i class="fas fa-clipboard-list mr-1"></i> 감사 로그
+            </a>
+            <div id="userDisplay" class="w-8 h-8 bg-slate-600 rounded-full flex items-center justify-center text-xs cursor-pointer" title="로그아웃">
+                AD
+            </div>
+        </div>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden">
+
+        <aside class="w-64 bg-white border-r border-slate-200 flex flex-col shadow-sm z-0">
+            <div class="p-4 border-b border-slate-100 bg-slate-50 text-center font-medium text-slate-700">
+                <i class="fas fa-cubes mr-2 text-blue-500"></i> 관리 시스템
+            </div>
+            <div class="flex-1 overflow-y-auto">
+                <a href="/index.html" class="sidebar-item p-4 block cursor-pointer hover:bg-slate-50 transition">
+                    <i class="fas fa-search mr-2 text-slate-400"></i> 문서 추출
+                </a>
+                <a href="/dashboard.html" class="sidebar-item p-4 block cursor-pointer hover:bg-slate-50 transition">
+                    <i class="fas fa-tachometer-alt mr-2 text-slate-400"></i> 대시보드
+                </a>
+                <a href="/documents.html" class="sidebar-item active p-4 block cursor-pointer hover:bg-slate-50 transition">
+                    <i class="fas fa-file-alt mr-2 text-blue-600"></i> 문서 목록
+                </a>
+                <a href="/audit-log.html" class="sidebar-item p-4 block cursor-pointer hover:bg-slate-50 transition">
+                    <i class="fas fa-shield-alt mr-2 text-slate-400"></i> 감사 로그
+                </a>
+                <a href="/user-management.html" class="sidebar-item p-4 block cursor-pointer hover:bg-slate-50 transition">
+                    <i class="fas fa-users mr-2 text-slate-400"></i> 사용자 관리
+                </a>
+            </div>
+        </aside>
+
+        <main class="flex-1 bg-slate-50 flex flex-col h-full overflow-hidden p-6">
+            <h2 class="text-2xl font-bold text-slate-800 mb-6">
+                <i class="fas fa-file-alt mr-2 text-blue-600"></i> 전체 문서 검색 및 목록
+            </h2>
+
+            <div class="bg-white rounded-lg shadow-md border border-slate-200 flex-1 flex flex-col overflow-hidden">
+                <div class="p-4 border-b border-slate-100">
+                    <div class="flex gap-4 items-center">
+                        <div class="relative flex-1">
+                            <input id="searchInput" type="text" placeholder="문서 이름, 계약 금액, 회사명 등으로 검색..."
+                                   class="w-full border border-slate-300 rounded-lg px-4 py-2 text-sm focus:border-blue-500 focus:ring-blue-500">
+                            <i class="fas fa-search absolute right-3 top-2.5 text-slate-400"></i>
+                        </div>
+                        <select id="statusFilter" class="border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-700">
+                            <option value="">전체 상태</option>
+                            <option value="completed">완료</option>
+                            <option value="pending">대기 중</option>
+                            <option value="processing">처리 중</option>
+                            <option value="error">오류</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="overflow-y-auto flex-1">
+                    <table class="min-w-full divide-y divide-slate-200">
+                        <thead class="bg-slate-50 sticky top-0">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">문서 ID</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">파일 이름</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">계약자 A</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">계약자 B</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">계약 금액</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">신뢰도</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">상태</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">업로드일</th>
+                            </tr>
+                        </thead>
+                        <tbody id="documentsTableBody" class="bg-white divide-y divide-slate-100">
+                            <tr>
+                                <td colspan="8" class="px-6 py-12 text-center text-slate-400">
+                                    <i class="fas fa-spinner fa-spin text-2xl mb-2"></i>
+                                    <p>문서 목록을 불러오는 중...</p>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script src="documents.js"></script>
+
+</body>
+</html>

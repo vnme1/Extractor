@@ -342,13 +342,25 @@ function setupSearch() {
     });
 }
 
-// 초기화
-document.addEventListener('DOMContentLoaded', () => {
+// 검색창 초기화 함수
+function clearSearchInput() {
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+        searchInput.value = '';
+        searchInput.setAttribute('value', '');
+    }
+}
+
+// 초기화 함수
+function initializePage() {
     // 로그인 체크
     if (!checkAuth()) return;
 
     // 관리자 권한 체크
     if (!checkAdminRole()) return;
+
+    // 검색창 즉시 초기화
+    clearSearchInput();
 
     // 사용자 정보 표시
     const username = localStorage.getItem('username');
@@ -385,4 +397,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 초기 로드
     loadUsers();
+}
+
+// 초기화
+document.addEventListener('DOMContentLoaded', initializePage);
+
+// pageshow 이벤트 (뒤로가기 포함)
+window.addEventListener('pageshow', (event) => {
+    clearSearchInput();
 });

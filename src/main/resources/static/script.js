@@ -66,9 +66,14 @@ const amountInput = document.getElementById('amountInput');
 const exportButton = document.getElementById('exportButton');
 const exportExcelButton = document.getElementById('exportExcelButton');
 const verifyButton = document.getElementById('verifyButton');
+const deleteSelectedButton = document.getElementById('deleteSelectedButton');
+const deleteAllButton = document.getElementById('deleteAllButton');
 
 // 현재 문서 ID 저장
 let currentDocId = null;
+
+// 선택된 문서 ID 목록
+let selectedDocIds = new Set();
 
 // 페이지 로드 전 즉시 인증 체크 (화면이 보이기 전에 리다이렉트)
 if (!getAuthToken()) {
@@ -110,6 +115,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (exportButton) exportButton.addEventListener('click', exportToCSV);
     if (exportExcelButton) exportExcelButton.addEventListener('click', exportToExcel);
     if (verifyButton) verifyButton.addEventListener('click', verifyDocument);
+    if (deleteSelectedButton) deleteSelectedButton.addEventListener('click', deleteSelectedDocuments);
+    if (deleteAllButton) deleteAllButton.addEventListener('click', deleteAllDocuments);
 
     setupDragAndDrop();
     loadRecentDocuments();
@@ -262,15 +269,26 @@ async function loadRecentDocuments() {
         if (documentCount) documentCount.textContent = `${documents.length} 건`;
 
         recentDocuments.innerHTML = documents.map(doc => `
-            <div class="px-4 py-3 border-b border-slate-100 hover:bg-slate-50 cursor-pointer transition"
-                 onclick="loadDocument('${escapeHtml(doc.docId)}')">
-                <div class="text-sm font-medium text-slate-700 truncate">${escapeHtml(doc.fileName)}</div>
-                <div class="text-xs text-slate-400 mt-1">
-                    <span class="inline-block bg-slate-100 px-2 py-0.5 rounded mr-2">${escapeHtml(doc.status)}</span>
-                    ${new Date(doc.createdAt).toLocaleString('ko-KR')}
+            <div class="flex items-center px-4 py-3 border-b border-slate-100 hover:bg-slate-50 transition group">
+                <input type="checkbox"
+                       class="mr-3 w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                       onchange="toggleDocumentSelection('${escapeHtml(doc.docId)}', this.checked)"
+                       ${selectedDocIds.has(doc.docId) ? 'checked' : ''}>
+                <div class="flex-1 cursor-pointer" onclick="loadDocument('${escapeHtml(doc.docId)}')">
+                    <div class="text-sm font-medium text-slate-700 truncate">${escapeHtml(doc.fileName)}</div>
+                    <div class="text-xs text-slate-400 mt-1">
+                        <span class="inline-block bg-slate-100 px-2 py-0.5 rounded mr-2">${escapeHtml(doc.status)}</span>
+                        ${new Date(doc.createdAt).toLocaleString('ko-KR')}
+                    </div>
                 </div>
+                <button onclick="deleteSingleDocument('${escapeHtml(doc.docId)}', event)"
+                        class="ml-2 opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 px-2 py-1 rounded transition">
+                    <i class="fas fa-trash text-sm"></i>
+                </button>
             </div>
         `).join('');
+
+        updateDeleteButtonsState();
 
     } catch (error) {
         console.error('최근 문서 로드 실패:', error);
@@ -419,5 +437,128 @@ function showProcessing() {
 function showError() {
     if (rawTextContent) {
         rawTextContent.innerHTML = '<div class="text-center text-red-400"><i class="fas fa-exclamation-triangle text-2xl"></i><p class="mt-2">처리 실패</p></div>';
+    }
+}
+
+// Document Selection Toggle
+function toggleDocumentSelection(docId, checked) {
+    if (checked) {
+        selectedDocIds.add(docId);
+    } else {
+        selectedDocIds.delete(docId);
+    }
+    updateDeleteButtonsState();
+}
+
+// Update Delete Buttons State
+function updateDeleteButtonsState() {
+    if (deleteSelectedButton) {
+        if (selectedDocIds.size > 0) {
+            deleteSelectedButton.disabled = false;
+            deleteSelectedButton.classList.remove('opacity-50', 'cursor-not-allowed');
+            deleteSelectedButton.innerHTML = `<i class="fas fa-trash mr-1"></i> 선택 삭제 (${selectedDocIds.size})`;
+        } else {
+            deleteSelectedButton.disabled = true;
+            deleteSelectedButton.classList.add('opacity-50', 'cursor-not-allowed');
+            deleteSelectedButton.innerHTML = '<i class="fas fa-trash mr-1"></i> 선택 삭제';
+        }
+    }
+}
+
+// Delete Single Document
+async function deleteSingleDocument(docId, event) {
+    event.stopPropagation();
+
+    if (!confirm('이 문서를 삭제하시겠습니까?')) {
+        return;
+    }
+
+    try {
+        const token = getAuthToken();
+        const response = await fetch(`/api/extract/documents/${docId}`, {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (response.ok) {
+            addLog('INFO', '문서가 삭제되었습니다');
+            selectedDocIds.delete(docId);
+            loadRecentDocuments();
+        } else {
+            addLog('ERROR', '문서 삭제 실패');
+        }
+    } catch (error) {
+        console.error('문서 삭제 실패:', error);
+        addLog('ERROR', '문서 삭제 중 오류 발생');
+    }
+}
+
+// Delete Selected Documents
+async function deleteSelectedDocuments() {
+    if (selectedDocIds.size === 0) {
+        return;
+    }
+
+    if (!confirm(`선택한 ${selectedDocIds.size}개 문서를 삭제하시겠습니까?`)) {
+        return;
+    }
+
+    try {
+        const token = getAuthToken();
+        const response = await fetch('/api/extract/documents', {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(Array.from(selectedDocIds))
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            addLog('INFO', result.message || '선택한 문서가 삭제되었습니다');
+            selectedDocIds.clear();
+            loadRecentDocuments();
+        } else {
+            addLog('ERROR', '문서 삭제 실패');
+        }
+    } catch (error) {
+        console.error('문서 삭제 실패:', error);
+        addLog('ERROR', '문서 삭제 중 오류 발생');
+    }
+}
+
+// Delete All Documents
+async function deleteAllDocuments() {
+    if (!confirm('⚠️ 모든 문서를 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다!')) {
+        return;
+    }
+
+    if (!confirm('정말로 전체 문서를 삭제하시겠습니까?')) {
+        return;
+    }
+
+    try {
+        const token = getAuthToken();
+        const response = await fetch('/api/extract/documents/all', {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`
+            }
+        });
+
+        if (response.ok) {
+            const result = await response.json();
+            addLog('INFO', result.message || '전체 문서가 삭제되었습니다');
+            selectedDocIds.clear();
+            loadRecentDocuments();
+        } else {
+            addLog('ERROR', '전체 삭제 실패');
+        }
+    } catch (error) {
+        console.error('전체 삭제 실패:', error);
+        addLog('ERROR', '전체 삭제 중 오류 발생');
     }
 }

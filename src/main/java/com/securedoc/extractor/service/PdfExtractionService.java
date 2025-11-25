@@ -2,10 +2,15 @@ package com.securedoc.extractor.service;
 
 import com.securedoc.extractor.model.ExtractionResult;
 import lombok.extern.slf4j.Slf4j;
+import net.sourceforge.tess4j.Tesseract;
+import net.sourceforge.tess4j.TesseractException;
 import org.apache.pdfbox.pdmodel.PDDocument;
+import org.apache.pdfbox.pdmodel.PDPage;
+import org.apache.pdfbox.rendering.PDFRenderer;
 import org.apache.pdfbox.text.PDFTextStripper;
 import org.springframework.stereotype.Service;
 
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
 import java.util.regex.Matcher;
@@ -90,9 +95,10 @@ public class PdfExtractionService {
             PDFTextStripper stripper = new PDFTextStripper();
             String text = stripper.getText(document);
 
-            // 추출된 텍스트가 비어있는 경우 체크
-            if (text == null || text.trim().isEmpty()) {
-                result.addLog("WARN", "텍스트를 추출할 수 없습니다. 이미지 기반 PDF일 수 있습니다.");
+            // 추출된 텍스트가 비어있는 경우 OCR 시도
+            if (text == null || text.trim().isEmpty() || text.trim().length() < 100) {
+                result.addLog("INFO", "텍스트 추출 실패. OCR을 시도합니다...");
+                text = extractTextUsingOCR(document, result);
             }
 
             return text != null ? text : "";
@@ -100,10 +106,9 @@ public class PdfExtractionService {
         } catch (org.apache.pdfbox.pdmodel.encryption.InvalidPasswordException e) {
             throw new IOException("암호화된 PDF 파일은 처리할 수 없습니다", e);
         } catch (IOException e) {
-            if (e.getMessage() != null && (
-                e.getMessage().contains("expected='PDF'") ||
-                e.getMessage().contains("not a valid PDF") ||
-                e.getMessage().contains("Error: End-of-File"))) {
+            if (e.getMessage() != null && (e.getMessage().contains("expected='PDF'") ||
+                    e.getMessage().contains("not a valid PDF") ||
+                    e.getMessage().contains("Error: End-of-File"))) {
                 throw new IOException("손상되었거나 유효하지 않은 PDF 파일입니다", e);
             }
             throw e;
@@ -115,6 +120,107 @@ public class PdfExtractionService {
                     log.warn("PDF 문서 닫기 실패", e);
                 }
             }
+        }
+    }
+
+    private String extractTextUsingOCR(PDDocument document, ExtractionResult result) {
+        StringBuilder ocrText = new StringBuilder();
+
+        try {
+            Tesseract tesseract = new Tesseract();
+
+            // Tesseract 데이터 경로 설정 (여러 경로 시도)
+            String[] possiblePaths = {
+                    "C:/Program Files/Tesseract-OCR/tessdata",
+                    "C:/Program Files (x86)/Tesseract-OCR/tessdata",
+                    "/usr/share/tesseract-ocr/4.00/tessdata",
+                    "/usr/share/tessdata",
+                    "./tessdata"
+            };
+
+            boolean tessDataFound = false;
+            for (String path : possiblePaths) {
+                File tessDataDir = new File(path);
+                if (tessDataDir.exists()) {
+                    tesseract.setDatapath(path);
+                    tessDataFound = true;
+                    result.addLog("INFO", "Tesseract 데이터 경로: " + path);
+                    break;
+                }
+            }
+
+            if (!tessDataFound) {
+                result.addLog("ERROR", "Tesseract가 설치되지 않았거나 언어 데이터를 찾을 수 없습니다.");
+                result.addLog("INFO", "Tesseract 설치 방법: https://github.com/tesseract-ocr/tesseract");
+                return "";
+            }
+
+            // 언어 설정 시도 (한글만, 영어만, 둘 다 순서로 시도)
+            String[] languageOptions = { "kor+eng", "eng", "kor" };
+            boolean languageSet = false;
+
+            for (String lang : languageOptions) {
+                try {
+                    tesseract.setLanguage(lang);
+                    languageSet = true;
+                    result.addLog("INFO", "OCR 언어 설정: " + lang);
+                    break;
+                } catch (Exception e) {
+                    log.debug("언어 {} 설정 실패", lang);
+                }
+            }
+
+            if (!languageSet) {
+                result.addLog("ERROR", "OCR 언어 데이터를 로드할 수 없습니다. kor.traineddata 또는 eng.traineddata 파일이 필요합니다.");
+                return "";
+            }
+
+            tesseract.setPageSegMode(1); // 자동 페이지 분할
+            tesseract.setOcrEngineMode(1); // LSTM 엔진 사용
+
+            PDFRenderer renderer = new PDFRenderer(document);
+            int pageCount = document.getNumberOfPages();
+
+            // 최대 10페이지까지만 OCR (성능 고려)
+            int maxPages = Math.min(pageCount, 10);
+
+            for (int page = 0; page < maxPages; page++) {
+                try {
+                    result.addLog("INFO", String.format("페이지 %d/%d OCR 처리 중...", page + 1, maxPages));
+
+                    // PDF 페이지를 이미지로 변환 (300 DPI)
+                    BufferedImage image = renderer.renderImageWithDPI(page, 300);
+
+                    // OCR 수행
+                    String pageText = tesseract.doOCR(image);
+
+                    if (pageText != null && !pageText.trim().isEmpty()) {
+                        ocrText.append(pageText).append("\n");
+                    }
+
+                } catch (Exception e) {
+                    log.warn("페이지 " + (page + 1) + " OCR 실패", e);
+                    result.addLog("WARN", "페이지 " + (page + 1) + " OCR 실패: " + e.getMessage());
+                }
+            }
+
+            if (pageCount > maxPages) {
+                result.addLog("INFO", String.format("성능을 위해 처음 %d 페이지만 OCR 처리했습니다.", maxPages));
+            }
+
+            String finalText = ocrText.toString().trim();
+            if (!finalText.isEmpty()) {
+                result.addLog("INFO", "OCR로 텍스트 추출 완료 (" + finalText.length() + " chars)");
+            } else {
+                result.addLog("WARN", "OCR로 텍스트를 추출할 수 없습니다.");
+            }
+
+            return finalText;
+
+        } catch (Exception e) {
+            log.error("OCR 처리 중 오류 발생", e);
+            result.addLog("ERROR", "OCR 실패: " + e.getMessage());
+            return "";
         }
     }
 

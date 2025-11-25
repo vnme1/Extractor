@@ -60,7 +60,14 @@
             <artifactId>fontbox</artifactId>
             <version>${pdfbox.version}</version>
         </dependency>
-        
+
+        <!-- Tesseract OCR -->
+        <dependency>
+            <groupId>net.sourceforge.tess4j</groupId>
+            <artifactId>tess4j</artifactId>
+            <version>5.9.0</version>
+        </dependency>
+
         <!-- Lombok -->
         <dependency>
             <groupId>org.projectlombok</groupId>
