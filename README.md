@@ -208,19 +208,6 @@ docker run -p 18339:18339 securedoc-extractor
 
 ---
 
-## 👨‍💻 개발자
-
-- **이름**: [Your Name]
-- **이메일**: [your.email@example.com]
-- **GitHub**: [https://github.com/yourusername]
-
----
-
-## 📄 라이선스
-
-이 프로젝트는 MIT 라이선스를 따릅니다.
-
----
 
 ## 📞 문의
 
