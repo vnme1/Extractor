@@ -1,7 +1,17 @@
 {
   "permissions": {
     "allow": [
-      "Bash(mvn clean package:*)"
+      "Bash(mvn clean package:*)",
+      "Bash(mvn clean compile:*)",
+      "Bash(mvn spring-boot:run:*)",
+      "Bash(taskkill:*)",
+      "Bash(cmd //c run.bat)",
+      "Bash(dir c:UsersUSERDesktopvnmeprojectextractoruploaded_files)",
+      "Bash(cmd //c \"c:\\Users\\USER\\Desktop\\vnme\\project\\extractor\\run.bat\")",
+      "Bash(timeout /t 5 /nobreak)",
+      "Bash(timeout /t 8 /nobreak)",
+      "Bash(dir:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nfeat: PDF 파일 영구 저장 및 누적 통계 시스템 구현\n\n주요 변경사항:\n- PDF 파일을 stored_documents/ 디렉토리에 영구 저장\n- 문서 검증 페이지에 PDF.js 통합하여 실제 PDF 렌더링\n- 누적 통계 시스템 구현 (문서 삭제 시에도 통계 유지)\n- 문서 목록 페이지에 선택 삭제/전체 삭제 기능 추가\n- 대시보드 그래프가 누적 통계 사용하도록 수정\n\n새로운 파일:\n- DashboardStatistics.java: 월별 누적 통계 엔티티\n- DashboardStatisticsRepository.java: 통계 데이터 접근\n- DashboardStatisticsService.java: 누적 통계 관리 서비스\n- document-verify.html/js: PDF 뷰어 및 검증 페이지\n\n수정된 기능:\n- Document 모델에 filePath 필드 추가\n- FileExtractionController에 PDF 제공 API 추가\n- 문서 삭제 시 실제 PDF 파일도 삭제\n- 대시보드 통계가 실시간이 아닌 누적 데이터 표시\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
     ],
     "deny": [],
     "ask": []
