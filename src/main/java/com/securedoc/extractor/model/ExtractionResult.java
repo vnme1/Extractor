@@ -23,6 +23,7 @@ public class ExtractionResult {
     private double confidence = 0.0;
 
     private String status = "processing";
+    private String filePath;
     private List<ExtractionLog> logs = new ArrayList<>();
 
     public void addLog(String level, String message) {

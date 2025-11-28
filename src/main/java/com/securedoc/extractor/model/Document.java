@@ -42,6 +42,9 @@ public class Document {
     @Column(nullable = false)
     private String status;
 
+    @Column
+    private String filePath;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "owner_id")
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
@@ -61,5 +64,21 @@ public class Document {
     @PreUpdate
     protected void onUpdate() {
         updatedAt = LocalDateTime.now();
+    }
+
+    // Lombok이 자동 생성하는 getFileName()을 명시적으로 추가
+    public String getFileName() {
+        return this.fileName;
+    }
+
+    // JSON 직렬화를 위한 getter - amount를 contractAmount로 매핑
+    public String getContractAmount() {
+        return amount != null ? String.format("%,d", amount) : null;
+    }
+
+    // JSON 직렬화를 위한 getter - fileName을 filename으로도 접근 가능하게
+    @com.fasterxml.jackson.annotation.JsonProperty("filename")
+    public String getFilename() {
+        return this.fileName;
     }
 }

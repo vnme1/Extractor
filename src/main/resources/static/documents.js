@@ -60,7 +60,7 @@ async function loadDocuments() {
         const tbody = document.getElementById('documentsTableBody');
         tbody.innerHTML = `
             <tr>
-                <td colspan="8" class="px-6 py-12 text-center text-red-500">
+                <td colspan="9" class="px-6 py-12 text-center text-red-500">
                     <i class="fas fa-exclamation-circle text-2xl mb-2"></i>
                     <p>문서 목록을 불러오는데 실패했습니다.</p>
                 </td>
@@ -98,7 +98,7 @@ function renderDocuments() {
     if (filteredDocuments.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="8" class="px-6 py-12 text-center text-slate-400">
+                <td colspan="9" class="px-6 py-12 text-center text-slate-400">
                     <i class="fas fa-inbox text-3xl mb-2"></i>
                     <p>검색 결과가 없습니다.</p>
                 </td>
@@ -113,32 +113,36 @@ function renderDocuments() {
         const uploadDate = formatDate(doc.createdAt);
 
         return `
-            <tr class="hover:bg-slate-50 transition cursor-pointer" onclick="viewDocument(${doc.id})">
-                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">
+            <tr class="hover:bg-slate-50 transition">
+                <td class="px-4 py-4" onclick="event.stopPropagation()">
+                    <input type="checkbox" class="doc-checkbox w-4 h-4 text-blue-600 rounded"
+                           data-doc-id="${doc.docId}" onchange="updateSelectedCount()">
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900 cursor-pointer" onclick="viewDocument(${doc.id})">
                     #${doc.id}
                 </td>
-                <td class="px-6 py-4 text-sm text-slate-700">
+                <td class="px-6 py-4 text-sm text-slate-700 cursor-pointer" onclick="viewDocument(${doc.id})">
                     <div class="flex items-center gap-2">
                         <i class="fas fa-file-pdf text-red-500"></i>
                         <span class="truncate max-w-xs">${doc.filename || 'N/A'}</span>
                     </div>
                 </td>
-                <td class="px-6 py-4 text-sm text-slate-700">
+                <td class="px-6 py-4 text-sm text-slate-700 cursor-pointer" onclick="viewDocument(${doc.id})">
                     ${doc.contractorA || '-'}
                 </td>
-                <td class="px-6 py-4 text-sm text-slate-700">
+                <td class="px-6 py-4 text-sm text-slate-700 cursor-pointer" onclick="viewDocument(${doc.id})">
                     ${doc.contractorB || '-'}
                 </td>
-                <td class="px-6 py-4 text-sm text-slate-700 font-medium">
+                <td class="px-6 py-4 text-sm text-slate-700 font-medium cursor-pointer" onclick="viewDocument(${doc.id})">
                     ${doc.contractAmount || '-'}
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm">
+                <td class="px-6 py-4 whitespace-nowrap text-sm cursor-pointer" onclick="viewDocument(${doc.id})">
                     ${confidenceBadge}
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm">
+                <td class="px-6 py-4 whitespace-nowrap text-sm cursor-pointer" onclick="viewDocument(${doc.id})">
                     ${statusBadge}
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500">
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-500 cursor-pointer" onclick="viewDocument(${doc.id})">
                     ${uploadDate}
                 </td>
             </tr>
@@ -192,6 +196,116 @@ function formatDate(dateString) {
 
 // ===== 문서 상세 보기 =====
 function viewDocument(documentId) {
-    // 문서 상세 페이지로 이동 또는 모달 표시
-    window.location.href = `/index.html?documentId=${documentId}`;
+    // 문서 검증 페이지로 이동
+    window.location.href = `/document-verify.html?id=${documentId}`;
+}
+
+// ===== 체크박스 관리 =====
+function toggleSelectAll() {
+    const selectAllCheckbox = document.getElementById('selectAll');
+    const checkboxes = document.querySelectorAll('.doc-checkbox');
+
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = selectAllCheckbox.checked;
+    });
+
+    updateSelectedCount();
+}
+
+function updateSelectedCount() {
+    const checkboxes = document.querySelectorAll('.doc-checkbox:checked');
+    const count = checkboxes.length;
+    document.getElementById('selectedCount').textContent = `선택됨: ${count}개`;
+
+    // 전체 선택 체크박스 상태 업데이트
+    const allCheckboxes = document.querySelectorAll('.doc-checkbox');
+    const selectAllCheckbox = document.getElementById('selectAll');
+    selectAllCheckbox.checked = allCheckboxes.length > 0 && count === allCheckboxes.length;
+}
+
+// ===== 선택 삭제 =====
+async function deleteSelected() {
+    const checkboxes = document.querySelectorAll('.doc-checkbox:checked');
+
+    if (checkboxes.length === 0) {
+        alert('삭제할 문서를 선택해주세요.');
+        return;
+    }
+
+    if (!confirm(`선택한 ${checkboxes.length}개의 문서를 삭제하시겠습니까?`)) {
+        return;
+    }
+
+    try {
+        const docIds = Array.from(checkboxes).map(cb => cb.dataset.docId);
+        const token = sessionStorage.getItem('token');
+
+        const response = await fetch('/api/extract/documents', {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(docIds)
+        });
+
+        if (!response.ok) {
+            throw new Error('문서 삭제 실패');
+        }
+
+        const result = await response.json();
+        alert(`${result.count || checkboxes.length}개의 문서가 삭제되었습니다.`);
+
+        // 목록 새로고침
+        loadDocuments();
+
+    } catch (error) {
+        console.error('삭제 실패:', error);
+        alert('문서 삭제 중 오류가 발생했습니다.');
+    }
+}
+
+// ===== 전체 삭제 =====
+async function deleteAll() {
+    if (allDocuments.length === 0) {
+        alert('삭제할 문서가 없습니다.');
+        return;
+    }
+
+    const confirmMessage = `전체 ${allDocuments.length}개의 문서를 모두 삭제하시겠습니까?\n\n이 작업은 되돌릴 수 없습니다!`;
+
+    if (!confirm(confirmMessage)) {
+        return;
+    }
+
+    // 한 번 더 확인
+    if (!confirm('정말로 전체 문서를 삭제하시겠습니까?')) {
+        return;
+    }
+
+    try {
+        const token = sessionStorage.getItem('token');
+
+        const response = await fetch('/api/extract/documents/all', {
+            method: 'DELETE',
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error('전체 삭제 실패');
+        }
+
+        const result = await response.json();
+        alert(`${result.count || allDocuments.length}개의 문서가 모두 삭제되었습니다.`);
+
+        // 목록 새로고침
+        loadDocuments();
+
+    } catch (error) {
+        console.error('전체 삭제 실패:', error);
+        alert('전체 문서 삭제 중 오류가 발생했습니다.');
+    }
 }

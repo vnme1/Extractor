@@ -26,6 +26,7 @@ public class DocumentService {
     private final DocumentRepository documentRepository;
     private final UserRepository userRepository;
     private final AuditLogService auditLogService;
+    private final DashboardStatisticsService statisticsService;
 
     @Transactional
     public Document saveExtractionResult(ExtractionResult result) {
@@ -41,6 +42,7 @@ public class DocumentService {
         document.setAmount(result.getAmount());
         document.setConfidence(result.getConfidence());
         document.setStatus(result.getStatus());
+        document.setFilePath(result.getFilePath());
 
         // 현재 로그인한 사용자를 소유자로 설정
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
@@ -60,6 +62,12 @@ public class DocumentService {
         auditLogService.logDocument(AuditLog.ActionType.DOCUMENT_UPLOAD, document.getDocId(),
                 String.format("문서 업로드: %s (%d 페이지)", document.getFileName(), document.getTotalPages()));
 
+        // 통계 업데이트
+        statisticsService.incrementDocumentUploaded(result.getConfidence());
+        if ("error".equals(result.getStatus())) {
+            statisticsService.incrementDocumentWithError();
+        }
+
         return savedDocument;
     }
 
@@ -70,6 +78,22 @@ public class DocumentService {
         if (document.isPresent()) {
             auditLogService.logDocument(AuditLog.ActionType.DOCUMENT_VIEW, docId,
                     String.format("문서 조회: %s", document.get().getFileName()));
+        }
+
+        return document;
+    }
+
+    /**
+     * ID로 문서 조회
+     */
+    public Optional<Document> findById(Long id) {
+        Optional<Document> document = documentRepository.findById(id);
+
+        // 문서 조회 로그
+        if (document.isPresent()) {
+            Document doc = document.get();
+            auditLogService.logDocument(AuditLog.ActionType.DOCUMENT_VIEW, doc.getDocId(),
+                    String.format("문서 조회: %s", doc.getFileName()));
         }
 
         return document;
@@ -100,6 +124,68 @@ public class DocumentService {
     }
 
     /**
+     * 문서 정보 업데이트 (검증 완료 시)
+     */
+    @Transactional
+    public Document updateDocument(Long id, Document updates) {
+        Document document = documentRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("문서를 찾을 수 없습니다: " + id));
+
+        // 업데이트 가능한 필드만 수정
+        if (updates.getContractorA() != null) {
+            document.setContractorA(updates.getContractorA());
+        }
+        if (updates.getContractorB() != null) {
+            document.setContractorB(updates.getContractorB());
+        }
+        if (updates.getStartDate() != null) {
+            document.setStartDate(updates.getStartDate());
+        }
+        if (updates.getEndDate() != null) {
+            document.setEndDate(updates.getEndDate());
+        }
+        if (updates.getStatus() != null) {
+            document.setStatus(updates.getStatus());
+        }
+
+        // contractAmount는 문자열로 들어오므로 파싱 필요
+        // 하지만 Document 모델에 setContractAmount가 없으므로 amount를 직접 설정
+        // 프론트엔드에서 contractAmount를 보내면 무시됨 (amount 필드를 사용해야 함)
+
+        Document saved = documentRepository.save(document);
+
+        // 감사 로그 기록
+        auditLogService.logDocument(AuditLog.ActionType.DOCUMENT_EDIT, document.getDocId(),
+                String.format("문서 검증 완료: %s", document.getFileName()));
+
+        // 완료 상태로 변경된 경우 통계 업데이트
+        if ("completed".equals(updates.getStatus())) {
+            statisticsService.incrementDocumentCompleted();
+        }
+
+        log.info("문서 업데이트 완료: {}", document.getDocId());
+        return saved;
+    }
+
+    /**
+     * 문서 재처리 요청
+     */
+    @Transactional
+    public void markForReprocessing(Long id) {
+        Document document = documentRepository.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("문서를 찾을 수 없습니다: " + id));
+
+        document.setStatus("pending");
+        documentRepository.save(document);
+
+        // 감사 로그 기록
+        auditLogService.logDocument(AuditLog.ActionType.DOCUMENT_EDIT, document.getDocId(),
+                String.format("문서 재처리 요청: %s", document.getFileName()));
+
+        log.info("문서 재처리 요청: {}", document.getDocId());
+    }
+
+    /**
      * 단일 문서 삭제
      */
     @Transactional
@@ -113,6 +199,9 @@ public class DocumentService {
             auditLogService.logDocument(AuditLog.ActionType.DOCUMENT_DELETE, docId,
                     String.format("문서 삭제: %s", document.getFileName()));
 
+            // 실제 PDF 파일 삭제
+            deletePhysicalFile(document.getFilePath());
+
             documentRepository.delete(document);
             log.info("문서 삭제 완료: {}", docId);
             return true;
@@ -120,6 +209,25 @@ public class DocumentService {
 
         log.warn("삭제할 문서를 찾을 수 없음: {}", docId);
         return false;
+    }
+
+    /**
+     * 실제 파일 삭제 헬퍼 메서드
+     */
+    private void deletePhysicalFile(String filePath) {
+        if (filePath != null && !filePath.isEmpty()) {
+            try {
+                java.nio.file.Path path = java.nio.file.Paths.get(filePath);
+                if (java.nio.file.Files.exists(path)) {
+                    java.nio.file.Files.delete(path);
+                    log.info("실제 파일 삭제 완료: {}", filePath);
+                } else {
+                    log.warn("실제 파일이 존재하지 않음: {}", filePath);
+                }
+            } catch (Exception e) {
+                log.error("실제 파일 삭제 실패: {}", filePath, e);
+            }
+        }
     }
 
     /**

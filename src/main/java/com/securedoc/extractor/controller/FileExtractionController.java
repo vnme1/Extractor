@@ -38,6 +38,7 @@ import java.util.UUID;
 public class FileExtractionController {
 
     private static final String UPLOAD_DIR = "uploaded_files/";
+    private static final String STORED_DIR = "stored_documents/";
     private static final long MAX_FILE_SIZE = 50 * 1024 * 1024;
     private static final String[] ALLOWED_EXTENSIONS = { ".pdf" };
 
@@ -73,11 +74,16 @@ public class FileExtractionController {
         }
 
         Path tempFilePath = null;
+        Path storedFilePath = null;
 
         try {
             tempFilePath = saveTempFile(file);
 
             ExtractionResult result = pdfExtractionService.processPdfFile(tempFilePath.toFile());
+
+            // PDF 파일을 영구 저장소에 저장
+            storedFilePath = saveStoredFile(file, result.getDocId());
+            result.setFilePath(storedFilePath.toString());
 
             documentService.saveExtractionResult(result);
 
@@ -86,10 +92,14 @@ public class FileExtractionController {
 
         } catch (IOException e) {
             log.error("파일 저장 실패: {}", originalFilename, e);
+            // 저장 실패 시 영구 파일도 삭제
+            cleanupTempFile(storedFilePath);
             return createErrorResponse("파일 저장 중 오류 발생", HttpStatus.INTERNAL_SERVER_ERROR);
 
         } catch (Exception e) {
             log.error("파일 처리 실패: {}", originalFilename, e);
+            // 처리 실패 시 영구 파일도 삭제
+            cleanupTempFile(storedFilePath);
             return createErrorResponse("파일 처리 중 오류 발생: " + e.getMessage(),
                     HttpStatus.INTERNAL_SERVER_ERROR);
 
@@ -133,9 +143,89 @@ public class FileExtractionController {
 
     @GetMapping("/documents/{docId}")
     public ResponseEntity<Document> getDocument(@PathVariable String docId) {
-        return documentService.findByDocId(docId)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+        // 숫자인 경우 ID로 조회, 문자열인 경우 docId로 조회
+        try {
+            Long id = Long.parseLong(docId);
+            return documentService.findById(id)
+                    .map(ResponseEntity::ok)
+                    .orElse(ResponseEntity.notFound().build());
+        } catch (NumberFormatException e) {
+            return documentService.findByDocId(docId)
+                    .map(ResponseEntity::ok)
+                    .orElse(ResponseEntity.notFound().build());
+        }
+    }
+
+    /**
+     * 문서 정보 업데이트 (검증 완료 시)
+     */
+    @PutMapping("/documents/{id}")
+    public ResponseEntity<Document> updateDocument(
+            @PathVariable Long id,
+            @RequestBody Document updates) {
+        try {
+            Document updated = documentService.updateDocument(id, updates);
+            return ResponseEntity.ok(updated);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            log.error("문서 업데이트 실패: {}", id, e);
+            return ResponseEntity.internalServerError().build();
+        }
+    }
+
+    /**
+     * 문서 재처리 요청
+     */
+    @PostMapping("/documents/{id}/reprocess")
+    public ResponseEntity<?> reprocessDocument(@PathVariable Long id) {
+        try {
+            documentService.markForReprocessing(id);
+            return ResponseEntity.ok().body("{\"message\": \"재처리 요청이 완료되었습니다\"}");
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            log.error("문서 재처리 요청 실패: {}", id, e);
+            return ResponseEntity.internalServerError()
+                    .body("{\"error\": \"재처리 요청 중 오류 발생\"}");
+        }
+    }
+
+    /**
+     * PDF 파일 제공
+     */
+    @GetMapping("/documents/{id}/pdf")
+    public ResponseEntity<ByteArrayResource> getDocumentPdf(@PathVariable Long id) {
+        try {
+            Document document = documentService.findById(id)
+                    .orElseThrow(() -> new IllegalArgumentException("문서를 찾을 수 없습니다: " + id));
+
+            if (document.getFilePath() == null || document.getFilePath().isEmpty()) {
+                return ResponseEntity.notFound().build();
+            }
+
+            Path pdfPath = Paths.get(document.getFilePath());
+            if (!Files.exists(pdfPath)) {
+                log.error("PDF 파일이 존재하지 않음: {}", pdfPath);
+                return ResponseEntity.notFound().build();
+            }
+
+            byte[] pdfData = Files.readAllBytes(pdfPath);
+            ByteArrayResource resource = new ByteArrayResource(pdfData);
+
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename*=UTF-8''" +
+                            java.net.URLEncoder.encode(document.getFileName(), "UTF-8").replace("+", "%20"))
+                    .contentType(MediaType.APPLICATION_PDF)
+                    .contentLength(pdfData.length)
+                    .body(resource);
+
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            log.error("PDF 파일 제공 실패: {}", id, e);
+            return ResponseEntity.internalServerError().build();
+        }
     }
 
     /**
@@ -271,6 +361,21 @@ public class FileExtractionController {
 
         file.transferTo(filePath);
         log.debug("임시 파일 저장: {}", filePath);
+
+        return filePath;
+    }
+
+    private Path saveStoredFile(MultipartFile file, String docId) throws IOException {
+        Path storedPath = Paths.get(STORED_DIR);
+        if (!Files.exists(storedPath)) {
+            Files.createDirectories(storedPath);
+        }
+
+        String storedFilename = docId + "_" + file.getOriginalFilename();
+        Path filePath = storedPath.resolve(storedFilename);
+
+        file.transferTo(filePath);
+        log.info("영구 파일 저장: {}", filePath);
 
         return filePath;
     }
